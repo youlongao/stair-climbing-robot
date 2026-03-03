@@ -2,6 +2,7 @@
 #include "ultrasonic_sensor.h"
 #include "motor_controller.h"
 #include "obstacle_avoidance.h"
+#include "item_scanner.h"
 #include <pigpio.h>
 #include <iostream>
 #include <thread>
@@ -32,7 +33,7 @@ int main()
 {
 	std::cout << "---- Start the real-time sorting robot system ----" << std::endl;
 
-	// regist signal process, ecsure the motor doesn't keep running 
+	// regist signal process, ecsure the motor doesn't keep running
 	signal(SIGINT, signalHandler);
 
 	//	initialize the gpio library
@@ -42,6 +43,10 @@ int main()
 
 		return -1;
 	}
+    ItemScanner scanner("items.db");
+    if (!scanner.initCamera(0)) {
+        return -1;
+    }
 
 	// Stack allocation instantiation of all core components
 	LineTracker tracker(17, 27, 22);
@@ -54,7 +59,7 @@ int main()
 	ultrasonic.initialize();
 	motor.initialize();
 
-	// register alert callback of obstacle avoidance system 
+	// register alert callback of obstacle avoidance system
 	obstacleSystem.registerAlertCallback([&motor](bool isBlocked) {
 		std::lock_guard<std::mutex> lock(motorMutex);
 		if (isBlocked) {
@@ -103,13 +108,28 @@ int main()
 			break;
 		}
 	});
-	
+    cv::Mat frame;
 	// Start a lightweigt timer thread that is only responsible for emitting ultrasonic pulses
 	std::thread triggerThread([&ultrasonic]() {
 		while (running) {
 			ultrasonic.trigger();
+			//scanner     q to exit
+
+			if (!scanner.getFrame(frame)) {
+                break;
+            }
+            ItemInfo info = scanner.scanFrame(frame);
+            if (info.found) {
+                std::cout << "item " << info.qr_code << " sent to " << info.destination << std::endl;
+                cv::waitKey(500);
+            }
+
+            cv::imshow("item scanning", frame);
+            if (cv::waitKey(1) == 'q') break;
+
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));	// distance measurement for 50ms
 		}
+        scanner.release();
 	});
 
 	std::cout << "[System] all hardware events are bound; enter pure event-driven sleep mode..." << std::endl;
