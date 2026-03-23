@@ -7,11 +7,9 @@
 
 #include "logger.h"
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 #include <cerrno>
 
 #include <gpiod.h>
-#endif
 
 namespace Robot
 {
@@ -19,11 +17,7 @@ namespace
 {
 std::string FormatErrno(const std::string& prefix)
 {
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	return prefix + ": " + std::strerror(errno);
-#else
-	return prefix;
-#endif
 }
 }
 
@@ -50,7 +44,6 @@ bool Encoder::start()
 		return true;
 	}
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	if (!initialiseRequest())
 	{
 		return false;
@@ -59,19 +52,13 @@ bool Encoder::start()
 	running_.store(true);
 	worker_ = std::thread(&Encoder::workerLoop, this);
 	return true;
-#else
-	Logger::warn("Encoder start skipped because libgpiod v2 is unavailable.");
-	return false;
-#endif
 }
 
 void Encoder::stop()
 {
 	if (!running_.exchange(false))
 	{
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 		releaseRequest();
-#endif
 		return;
 	}
 
@@ -80,9 +67,7 @@ void Encoder::stop()
 		worker_.join();
 	}
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	releaseRequest();
-#endif
 }
 
 std::int64_t Encoder::readTicks() const
@@ -123,7 +108,6 @@ void Encoder::setCallback(EncoderCallback callback)
 
 void Encoder::workerLoop()
 {
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	while (running_.load())
 	{
 		if (request_ == nullptr)
@@ -182,7 +166,6 @@ void Encoder::workerLoop()
 			updateFromState(a_active, b_active, SteadyClock::now());
 		}
 	}
-#endif
 }
 
 void Encoder::updateFromState(const bool channel_a_active,
@@ -236,7 +219,6 @@ void Encoder::updateFromState(const bool channel_a_active,
 	}
 }
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 bool Encoder::initialiseRequest()
 {
 	chip_ = gpiod_chip_open(chip_path_.c_str());
@@ -313,5 +295,4 @@ void Encoder::releaseRequest()
 		chip_ = nullptr;
 	}
 }
-#endif
 }

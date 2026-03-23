@@ -38,11 +38,8 @@ public:
 private:
 	void workerLoop();
 	void updateFromState(bool channel_a_active, bool channel_b_active, Timestamp timestamp);
-
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	bool initialiseRequest();
 	void releaseRequest();
-#endif
 
 	unsigned int channel_a_offset_;
 	std::optional<unsigned int> channel_b_offset_;
@@ -56,11 +53,9 @@ private:
 	std::thread worker_;
 	std::uint8_t previous_state_{0U};
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	gpiod_chip* chip_{nullptr};
 	gpiod_line_request* request_{nullptr};
 	gpiod_edge_event_buffer* event_buffer_{nullptr};
-#endif
 };
 }
 

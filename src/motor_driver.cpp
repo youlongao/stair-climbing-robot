@@ -7,11 +7,9 @@
 #include "logger.h"
 #include "utils.h"
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 #include <cerrno>
 
 #include <gpiod.h>
-#endif
 
 namespace Robot
 {
@@ -19,11 +17,7 @@ namespace
 {
 std::string FormatErrno(const std::string& prefix)
 {
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	return prefix + ": " + std::strerror(errno);
-#else
-	return prefix;
-#endif
 }
 }
 
@@ -51,9 +45,7 @@ MotorDriver::MotorDriver(std::string name,
 MotorDriver::~MotorDriver()
 {
 	stop();
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	releaseGpio();
-#endif
 }
 
 bool MotorDriver::start()
@@ -64,12 +56,7 @@ bool MotorDriver::start()
 		return false;
 	}
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	return initialiseGpio();
-#else
-	Logger::warn(name_ + " motor driver GPIO start skipped because libgpiod v2 is unavailable.");
-	return false;
-#endif
 }
 
 void MotorDriver::setSpeed(const float left_speed, const float right_speed)
@@ -106,7 +93,6 @@ void MotorDriver::stop()
 		pwm_driver_->disableChannel(static_cast<std::uint8_t>(right_pwm_channel_));
 	}
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	if (request_ != nullptr)
 	{
 		gpiod_line_request_set_value(request_, left_in1_, GPIOD_LINE_VALUE_INACTIVE);
@@ -114,12 +100,10 @@ void MotorDriver::stop()
 		gpiod_line_request_set_value(request_, right_in1_, GPIOD_LINE_VALUE_INACTIVE);
 		gpiod_line_request_set_value(request_, right_in2_, GPIOD_LINE_VALUE_INACTIVE);
 	}
-#endif
 }
 
 void MotorDriver::brake()
 {
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	if (request_ != nullptr)
 	{
 		gpiod_line_request_set_value(request_, left_in1_, GPIOD_LINE_VALUE_ACTIVE);
@@ -127,7 +111,6 @@ void MotorDriver::brake()
 		gpiod_line_request_set_value(request_, right_in1_, GPIOD_LINE_VALUE_ACTIVE);
 		gpiod_line_request_set_value(request_, right_in2_, GPIOD_LINE_VALUE_ACTIVE);
 	}
-#endif
 
 	if (pwm_driver_)
 	{
@@ -141,7 +124,6 @@ bool MotorDriver::applyMotorCommand(const float speed,
 									const unsigned int in1_offset,
 									const unsigned int in2_offset)
 {
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	if (request_ == nullptr || !pwm_driver_)
 	{
 		return false;
@@ -164,16 +146,8 @@ bool MotorDriver::applyMotorCommand(const float speed,
 	gpiod_line_request_set_value(request_, in1_offset, GPIOD_LINE_VALUE_INACTIVE);
 	gpiod_line_request_set_value(request_, in2_offset, GPIOD_LINE_VALUE_INACTIVE);
 	return pwm_driver_->disableChannel(static_cast<std::uint8_t>(pwm_channel));
-#else
-	(void)speed;
-	(void)pwm_channel;
-	(void)in1_offset;
-	(void)in2_offset;
-	return false;
-#endif
 }
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 bool MotorDriver::initialiseGpio()
 {
 	if (request_ != nullptr)
@@ -240,5 +214,4 @@ void MotorDriver::releaseGpio()
 		chip_ = nullptr;
 	}
 }
-#endif
 }

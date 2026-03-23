@@ -41,10 +41,8 @@ private:
 						   unsigned int in1_offset,
 						   unsigned int in2_offset);
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	bool initialiseGpio();
 	void releaseGpio();
-#endif
 
 	std::string name_;
 	std::string chip_path_;
@@ -56,10 +54,8 @@ private:
 	unsigned int right_in1_;
 	unsigned int right_in2_;
 
-#if defined(__linux__) && defined(CLIMBING_ROBOT_HAS_LIBGPIOD)
 	gpiod_chip* chip_{nullptr};
 	gpiod_line_request* request_{nullptr};
-#endif
 };
 }
 
