@@ -1,36 +1,89 @@
-Speed Control – Explanation
-Purpose of the Module
-The Motion Control Module is responsible for controlling the movement speed of the cart in the "Parcel Sorting and Line-following Cart" project. It ensures that the cart moves smoothly, maintains the correct speed, and responds properly to navigation and stop commands from other modules.
-This module acts as the execution layer between the control system and the physical motors.
+#  Three-Stage Stair-Climbing Robot
 
-How It Works
-The module uses wheel encoders to measure how fast the motors are rotating. It continuously compares the measured speed with the desired target speed.
-If the cart is moving too slow, the system increases motor power.
-If the cart is moving too fast, the system reduces motor power.
-This process happens continuously, allowing the cart to maintain stable and accurate motion.
+A modular C++ embedded system for controlling a **three-stage stair-climbing robot**, designed for complex terrain traversal including stairs, obstacles, and uneven surfaces.
 
-Why This Module is Important
-Without this module, the cart would not be able to move reliably. Motor speed would vary due to:
-•	Battery level changes
-•	Surface friction
-•	Load weight
-The Motion Control Module corrects these variations automatically and ensures consistent performance.
+---
 
-Integration with Other Modules
-This module works together with:
-Line Following Module
-Provides direction and movement commands
-Site Identification Module
-Provides stop signals when the cart reaches a destination
-Main Controller
-Coordinates overall system behavior
-The Motion Control Module executes the actual motor movement based on these commands.
+##  Overview
 
-Hardware Used
-Raspberry Pi (main controller)
-DC motors with encoders
-Motor driver module
-GPIO interface
+This project implements a **layered control architecture** for a stair-climbing robot, separating hardware abstraction from high-level motion logic. The system is designed with scalability, safety, and maintainability in mind.
 
-Summary
-In summary, the Motion Control Module ensures that the cart moves at the correct speed and responds accurately to system commands. It provides stable, reliable, and controlled motion, which is essential for the proper operation of the parcel sorting cart.
+The repository currently focuses on the **Low-Level Driver Layer**, which provides direct control over actuators and feedback sensors.
+
+---
+
+##  Features
+
+- ⚙️ Modular C++ design (hardware abstraction layers)
+- 🔄 Closed-loop control support (via encoder feedback)
+- 🛡️ Safety mechanisms (limit switches, safe positions, braking)
+- 🧩 Easy integration with higher-level control (FSM, planning)
+- 🐧 Linux-based embedded system (libgpiod + PWM driver)
+
+---
+
+##  System Architecture
+
+```text
++-----------------------------+
+|  Behavior / State Machine   |
++-----------------------------+
+|   Motion Control Layer      |
++-----------------------------+
+|   Mechanism Control Layer   |
++-----------------------------+
+|   Sensor Feedback Layer     |
++-----------------------------+
+|   Low-Level Driver Layer    |
++-----------------------------+
+|   Hardware (Motors, etc.)   |
++-----------------------------+
+
+climbing/
+├── include/
+│   ├── motor_driver.h
+│   ├── servo_driver.h
+│   ├── linear_actuator.h
+│   └── encoder.h
+│
+├── src/
+│   ├── motor_driver.cpp
+│   ├── servo_driver.cpp
+│   ├── linear_actuator.cpp
+│   └── encoder.cpp
+│
+├── docs/
+│   └── README-A.md
+│
+
+ow-Level Driver Layer
+Motor Driver
+
+Files
+motor_driver.h
+motor_driver.cpp
+Description
+Controls the main drive motors using PWM and GPIO direction signals.
+
+Servo Driver
+Files
+servo_driver.h
+servo_driver.cpp
+Description
+Controls servo motors for joints, locking mechanisms, and posture adjustment.
+
+Linear Actuator
+Files
+linear_actuator.h
+linear_actuator.cpp
+Description
+Controls linear motion components such as lead screws and lifting mechanisms.
+
+Encoder
+Files
+encoder.h
+encoder.cpp
+Description
+Provides feedback for position, speed, and distance using tick counting.
+
+Author YI LIU
