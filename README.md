@@ -1,175 +1,81 @@
-# Realtime-sorting-vehicle
-A soft real-time autonomous vehicle project based on Raspberry Pi, focusing on distance control, safety, and multi-threaded system design.
+# Three‑Stage Stair‑Climbing Robot – F Module (General Support Layer)
+## Module Overview
+The F Module serves as the **general support layer** for the entire three‑stage stair‑climbing robot project. It provides cross‑module shared data types, global configuration, utility functions, and logging functionality. This layer offers unified infrastructure for all upper‑level modules (sensors, actuators, state machines, etc.), ensuring code portability and maintainability.
 
-Project  overview
-This project inplements a multi-threaded autonomous robot system running on Raspberry Pi.
-The robot integrates:
-1. Line tracking (infrared sensors)
-2. Ultrasonic obstacle detection 
-3. Real-time motor control
-4. Thread synchronization
-5. safe shutdown handling (Ctrl+C)
+---
+## File Structure
+include/
+├── config.h    # Configuration for global hardware pins, sensor thresholds, motion parameters, etc.
+├── types.h     # Definitions of common data types, enumerations, and structs
+├── utils.h     # Declarations of utility functions (clamping, filtering, timeout detection)
+└── logger.h    # Logging interface declarations
 
-The system is designed using modular architecture and concurrent executionm ensuring smooth coordination between tracking and obstacle avoidance tasks.
+src/
+├── utils.cpp   # Implementation of utility functions
+└── logger.cpp  # Logging implementation (with timestamp and level output)
 
-System Architecture:
-+-------------------+
-|     main.cpp      |
-|-------------------|
-| Thread Management |
-| Signal Handling   |
-+-------------------+
-        |
-        ↓
-+-------------------+       +----------------------+
-| Line Tracker      |       | Obstacle Avoidance   |
-| (line_tracker)    |       | (ultrasonic_sensor)  |
-+-------------------+       +----------------------+
-            ↓                     ↓
-                +------------------+
-                | Motor Controller |
-                +------------------+
+---
+## File Descriptions
+### `config.h`
+Stores all hardware‑related constant configurations, including:
+- I2C bus, PCA9685 address, PWM frequency
+- Pin mapping for motor drivers, servos, and linear actuators
+- Threshold and timeout parameters for sensors (ultrasonic, downward‑looking, IMU)
+- Geometric dimensions, movement speed, safety limits, etc.
 
-Module Description:
-1. Line Tracking Module
-Functionality:
-a): Reads infrared sensors
-b): Determines deviation from line
-c): Sends direction command to motor controller
-
-Code logic:
-void LineTracker::evaluateDirection()
-{
-	// the current level state is read only when hardware interrupt is triggered
-	int leftState = gpioRead(leftpin);
-	int centerState = gpioRead(centerpin);
-	int rightState = gpioRead(rightpin);
-
-	int direction = 2;	// line lose
-
-	if (centerState == 1) {
-		direction = 0;	// center
-	}
-	else if (leftState == 1) {
-		direction = -1;	// left, corrected to the right
-	}
-	else if (rightState == 1) {
-		direction = 1;	// right, corrected to the left
-	}
-
-	if (m_callback) {
-		m_callback(direction);
-	}
+**Example of important constants**:
+```cpp
+namespace RobotConfig {    
+namespace GPIO {        
+constexpr int FRONT_L_IN1 = 17;   // Front-left motor direction pin    
+}    
+namespace Motion {        
+constexpr float APPROACH_SPEED = 0.35f;    
+}    
+namespace Safety {        
+constexpr float MAX_SAFE_PITCH_DEG = 25.0f;    
 }
-
-2. Ultrasonic Sensor Module
-Functionality:
-a): Sends trigger pulses
-b): Measures echo return time 
-c): Calculates distance
-    distance = times * (speed of sound) / 2
-
-Code logic:
-void Ultrasonic_Sensor::handleEchoInterrupt(int level, uint32_t tick)
-{
-	if (level == 1) {
-		startTick = tick;	// record rising edge time
-	}
-	else if (level == 0) {
-		uint32_t diff = tick - startTick;	// calculate the time difference on the falling edge
-		float distance = (diff * 0.0343f) / 2.0f;	// calculate distance - cm
-
-		if (m_callback) {
-			m_callback(distance);
-		}
-	}
 }
+```
 
-In this part, provides real-time distance data to obstacle avoidance module.
+### `types.h`
+Defines common data types and enumerations used across the project:
+- MotionState: robot state machine states (idle, approaching step, front‑stage climbing, etc.)
+- FaultCode: fault code enumeration
+- Structs: PoseData (posture), DistanceReading (distance), DownwardReading (downward‑looking), AxisState (linear axis state), etc.
+- Callback function types: PoseCallback, DistanceCallback, etc.
 
-3. Obstacle Avoidance Module
-Code logic:
-void ObstacleAvoidance::processDistanceUpdate(float currentDistanceCm)
-{
-	if (currentDistanceCm < threshold) {
-		// obstacles detected 
-		if (!currentlyBlocked) {
-			currentlyBlocked = true;
-			std::cout << "[obstacle avoidance system] detects obstacles (" << currentDistanceCm << "cm ), Stop!\n";
-			if (m_alertCallback) {
-				m_alertCallback(true);	// notify the main system -> stop!
-			}
-		}
-	}
-	else {
-		// no obstacles
-		if (currentlyBlocked) {
-			currentlyBlocked = false;
-			std::cout << "[obstacle avoidance system] No obstacles! (" << currentDistanceCm << "cm ), Pass!\n";
-			if (m_alertCallback) {
-				m_alertCallback(false); // notify the main system -> release stop!
-			}
-		}
-	}
+### `utils.h` / `utils.cpp`
+Provides general utility functions:
+- `clamp()`: value clamping
+- `lowPassFilter()`: first‑order low‑pass filtering
+- `hasTimedOut()` / `isFresh()`: data freshness judgment
+
+### `logger.h` / `logger.cpp`
+A simple logging system supporting four levels:
+- `Logger::debug()`: debug information
+- `Logger::info()`: general information
+- `Logger::warn()`: warning
+- `Logger::error()`: error
+
+Log output format: `[HH:MM:SS] [LEVEL] message`
+
+## Usage
+1. Include header files
+Include the corresponding headers in source files that require configuration, types, or utilities:
+```cpp
+#include "config.h"
+#include "types.h"
+#include "utils.h"
+#include "logger.h"
+```
+
+2. Use logging
+```cpp
+Logger::info("Robot initializing...");
+if (error_occurred) {    
+Logger::error("Failed to start IMU sensor");
 }
+```
 
-And uses mutex locking to prevent motor conflict:  
-std::mutex motorMutex;
-
-4. Motor controller
-Responsibilities:
-a): COntrol GPIO pins
-b): Set motor direction
-c): Adjust speed
-d): Prevent concurrent access
-
-This part is protected by:
-std::mutex motorMutex;
-Ensures only one thread can control motors at a time.
-
-5. Multi-Threading Design
-The system uses:
-std::atomic<bool> running
-std::mutex
-std::condition_variable
-
-Threads:
-Line Tracking Thread    -    Continuous line following
-Obstacle Thread    -    Distance monitoring
-Main Thread    -    System coordination
-
-6. Safe Shutdown Handing
-Program captures:
-signal(SIGINT, signalHandler);
-When user presses: "Ctrl + C"
-
-It:
-a): Sets running = false
-b): Joins all threads
-c): Stops motor safely
-d): Cleans up pipgio
-
-7. Build Instructions
-a): Install pipgio:
-sudo apt update
-sudo apt install pigpio
-sudo systemctl start pigpiod
-
-b): Compile
-g++ -std=c++17 main.cpp \
-    line_tracker.cpp \
-    ultrasonic_sensor.cpp \
-    obstacle_avoidance.cpp \
-    motor_controller.cpp \
-    -lpigpio -lpthread -o robot
-
-c): Run
-sudo ./robot
-
-Press "Ctrl + C" to stop
-
-8. Future Improvements
-a): PID control for smoother tracking
-b): Sensor fusion optimization
-c): Dynamic speed adjustment
-d): Logging system
+3. Use utility functions
