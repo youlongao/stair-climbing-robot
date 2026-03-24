@@ -99,6 +99,7 @@ namespace RobotConfig
 		constexpr int DOWNWARD_DEBOUNCE_US = 2500;
 		constexpr int ECHO_TIMEOUT_US = 30000;
 		constexpr int ECHO_EVENT_BUFFER_SIZE = 8;
+		constexpr int GPIO_EVENT_BUFFER_SIZE = 16;
 		constexpr float SPEED_OF_SOUND_MPS = 343.0f;
 		constexpr float STEP_FACE_MIN_DISTANCE_M = 0.04f;
 		constexpr float STEP_FACE_MAX_DISTANCE_M = 0.25f;
@@ -122,12 +123,6 @@ namespace RobotConfig
 		constexpr float MIN_PULSE_WIDTH_US = 500.0F;
 		constexpr float MAX_PULSE_WIDTH_US = 2500.0F;
 		constexpr float SAFE_ANGLE_DEG = 90.0F;
-	}
-
-	namespace Encoder
-	{
-		constexpr int EVENT_BUFFER_SIZE = 16;
-		constexpr float DEFAULT_METERS_PER_TICK = 0.0005F;
 	}
 
 	namespace Limits
