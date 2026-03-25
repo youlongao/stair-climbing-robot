@@ -101,6 +101,7 @@ This layer uses both **blocking I/O** and **callback-based updates** to provide 
 #include "downward_sensor.h"
 #include "front_distance_sensor.h"
 #include "limit_switch.h"
+```
 
 2. **Create sensor objects**
 
@@ -109,6 +110,7 @@ Robot::ImuSensor imu;
 Robot::DownwardSensor downward;
 Robot::FrontDistanceSensor front_distance;
 Robot::LimitSwitch upper_limit(5, Robot::LimitRole::Upper);
+```
 
 3. **Start sensors**
 
@@ -117,6 +119,7 @@ imu.start();
 downward.start();
 front_distance.start();
 upper_limit.start();
+```
 
 4. **Read latest data**
 
@@ -125,6 +128,7 @@ auto pose = imu.latestPose();
 auto step_info = downward.latest();
 auto distance = front_distance.latest();
 bool upper_triggered = upper_limit.isUpperLimit();
+```
 
 5. **Register callbacks**
 
@@ -136,6 +140,7 @@ imu.setCallback([](const Robot::PoseData& pose){
 downward.setCallback([](const Robot::DownwardReading& reading){
     // handle edge/drop
 });
+```
 
 ---
 
