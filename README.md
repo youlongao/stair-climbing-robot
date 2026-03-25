@@ -1,3 +1,104 @@
+
+
+##B Layer: Perception and Judgement (Sensor Layer)
+1. Layer Goal
+
+The B Layer converts raw sensor signals into high-level information for the state machine and controller. Its core responsibilities are:
+
+  Detect stair front faces
+  Determine whether front wheels, middle wheels, and rear support wheels have landed
+  Estimate robot pose using the IMU
+  Assess whether the robot is in a safe posture
+  Provide structured stair-climbing status for upper-level logic
+
+This layer uses both blocking I/O and callback-based updates to provide timely and reliable perception.
+
+2. Files in This Layer
+include/imu_sensor.h / src/imu_sensor.cpp
+include/downward_sensor.h / src/downward_sensor.cpp
+include/front_distance_sensor.h / src/front_distance_sensor.cpp
+include/limit_switch.h / src/limit_switch.cpp
+3. Sensor Modules and Responsibilities
+  3.1 IMU Sensor (ImuSensor)
+    Purpose: Measures robot attitude (pitch, roll, yaw) and determines tilt safety.
+    Data Source: I2C (MPU6050).
+    Update Method: Background polling thread.
+    Interface:
+      latestPose() – Get the latest pose
+      setCallback() – Register a callback when new data arrives
+    Details: Uses complementary filter to fuse accelerometer and gyroscope data; pitch and roll are used for safety evaluation; yaw is available but may drift over time.
+  3.2 Downward Sensor (DownwardSensor)
+    Purpose: Detects whether the front wheels are supported, edges, drops, or step surfaces.
+    Data Source: GPIO edge events.
+    Update Method: Background thread listening for GPIO edges.
+    Interface:
+      latest() – Get the latest reading
+      waitForEdge(timeout) – Block until an edge is detected
+      setCallback() – Register a callback for updates
+    Details: Reports:
+      on_step_surface – whether front wheels are on a step
+      drop_detected – if a drop is detected
+      edge_detected – if an edge is detected
+  3.3 Front Distance Sensor (FrontDistanceSensor)
+    Purpose: Measures distance from front of robot to obstacle or stair face.
+    Data Source: Ultrasonic sensor via GPIO trigger/echo lines.
+    Update Method: Blocking measurement.
+    Interface:
+      readBlocking(timeout) – Measure distance with a timeout
+      latest() – Get the latest reading
+      setCallback() – Register callback after each measurement
+    Details: Converts pulse width between trigger and echo to meters; used to detect stair faces or obstacles before front climbing.
+  3.4 Limit Switch (LimitSwitch)
+    Purpose: Protect mechanical structures by detecting upper/lower limits.
+    Data Source: GPIO edge events.
+    Update Method: Background thread listening for GPIO edges.
+    Interface:
+      isTriggered() – Check if the switch is triggered
+      isUpperLimit() / isLowerLimit() – Check specific role trigger
+      waitForTrigger(timeout) – Block until triggered
+      setCallback() – Register callback on trigger
+    Details: Supports active-low switches; maintains timestamp and validity of state.
+4. Design Highlights
+Thread-safe caching: All modules maintain the latest sensor readings with mutex protection.
+Callback-based notification: Upstream modules receive timely updates without busy-waiting.
+Hardware abstraction: Upper layers do not need to know GPIO or I2C details.
+Safety integration: IMU and limit switches are used to prevent unsafe actions.
+Edge/step detection: Downward and front distance sensors provide cues for stair climbing and obstacle avoidance.
+5. Usage
+Include header files
+  #include "imu_sensor.h"
+  #include "downward_sensor.h"
+  #include "front_distance_sensor.h"
+  #include "limit_switch.h"
+Create sensor objects
+  Robot::ImuSensor imu;
+  Robot::DownwardSensor downward;
+  Robot::FrontDistanceSensor front_distance;
+  Robot::LimitSwitch upper_limit(5, Robot::LimitRole::Upper);
+Start sensors
+  imu.start();
+  downward.start();
+  front_distance.start();
+  upper_limit.start();
+Read latest data
+  auto pose = imu.latestPose();
+  auto step_info = downward.latest();
+  auto distance = front_distance.latest();
+  bool upper_triggered = upper_limit.isUpperLimit();
+Register callbacks
+  imu.setCallback([](const Robot::PoseData& pose){ /* handle new pose */ });
+  downward.setCallback([](const Robot::DownwardReading& reading){ /* handle edge/drop */ });
+6. Summary
+
+The D layer provides a structured perception and judgment framework:
+
+1.Collect sensor data (IMU, downward, front distance, limit switches)
+2.Update cached readings and notify via callbacks
+3.Fuse pose and sensor data to evaluate safety and step readiness
+4.Provide high-level information to the upper-level stair-climbing control logic
+
+This design ensures safe and efficient stair climbing without exposing low-level hardware details to the main control algorithms.
+
 # C Layer: Mechanical Abstraction
 
 ## 1. Layer Goal
