@@ -1,3 +1,169 @@
+# A Layer: Basic Actuation (Driver Layer)
+
+## 1. Layer Goal
+
+The A Layer provides low-level hardware control for all robot actuators. It directly interfaces with PWM drivers and GPIO, translating control commands into physical motion.
+
+Its core responsibilities are:
+
+- Drive left and right motors for locomotion  
+- Control servo mechanisms for joints and locking systems  
+- Operate linear actuators for lifting and positioning  
+- Handle hardware-level safety via limit switches  
+- Provide a unified and abstract control interface for upper layers  
+
+This layer is designed to be **hardware-centric, deterministic, and real-time responsive**, forming the foundation for higher-level motion planning and control.
+
+---
+
+## 2. Files in This Layer
+include/motor_driver.h src/motor_driver.cpp
+include/servo_driver.h src/servo_driver.cpp
+include/linear_actuator.h src/linear_actuator.cpp
+
+---
+
+## 3. Driver Modules and Responsibilities
+
+### 3.1 Motor Driver (MotorDriver)
+
+**Purpose:**  
+Controls differential drive motors for robot movement (forward, backward, turning, braking).
+
+**Data Source / Interface:**  
+- PWM output via PCA9685  
+- Direction control via GPIO (libgpiod)
+
+**Update Method:**  
+Command-based (blocking calls)
+
+**Interface:**
+```cpp
+setSpeed(left, right)
+forward(speed)
+backward(speed)
+stop()
+brake()
+Details:
+
+Uses PWM duty cycle to control motor speed
+Uses GPIO IN1/IN2 pins to determine direction
+Supports normalized speed range [-1.0, 1.0]
+Automatically initializes GPIO and PWM driver
+brake() actively shortens motor terminals for fast stop
+
+3.2 Servo Driver (ServoDriver)
+
+Purpose:
+Controls servo motors for articulated joints, locking mechanisms, and fine posture adjustments.
+
+Data Source / Interface:
+
+PWM via PCA9685
+
+Update Method:
+Command-based
+
+Interface:
+
+setAngle(angle)
+setPulseWidth(us)
+moveToSafePosition()
+
+Details:
+
+Converts angle to PWM pulse width
+Clamps angle within safe mechanical limits
+Supports configurable safe position
+Automatically starts PWM driver when needed
+3.3 Linear Actuator (LinearActuator)
+
+Purpose:
+Controls linear motion components such as lead screws, sliders, or lifting mechanisms.
+
+Data Source / Interface:
+
+PWM via PCA9685 (forward/reverse channels)
+Limit switches for safety
+
+Update Method:
+Command-based with internal state tracking
+
+Interface:
+
+extend(speed)
+retract(speed)
+moveToPosition(position)
+stop()
+isAtLimit()
+
+Details:
+
+Uses dual PWM channels for bidirectional motion
+Integrates upper/lower limit switches for safety stop
+Maintains internal axis state:
+position (estimated)
+motion status
+limit states
+Automatically stops when limit is reached
+Supports normalized control (moveNormalized)
+4. Design Highlights
+Hardware Abstraction
+Encapsulates PWM (PCA9685) and GPIO (libgpiod)
+Upper layers do not depend on hardware details
+Safety Mechanisms
+Limit switches prevent over-travel
+Servo angle clamping avoids mechanical damage
+Motor braking enables rapid stop
+Lazy Initialization
+Drivers automatically initialize when used
+Reduces system startup dependency
+Bidirectional Control
+Uses PWM + GPIO combination for direction and speed
+Unified interface for all actuators
+State Awareness (Linear Actuator)
+Tracks motion and limit state
+Enables higher-level position control
+5. Usage
+Include headers
+#include "motor_driver.h"
+#include "servo_driver.h"
+#include "linear_actuator.h"
+Create drivers
+auto pwm = std::make_shared<Robot::Pca9685Driver>();
+
+Robot::MotorDriver motor("drive", pwm, 0, 1, 10, 11, 12, 13, "/dev/gpiochip0");
+Robot::ServoDriver servo(pwm, 2, 0.0f, 180.0f, 500.0f, 2500.0f, 90.0f);
+Robot::LinearActuator actuator(pwm, 3, 4, upper_limit, lower_limit, 0.2f);
+Start drivers
+motor.start();
+servo.start();
+actuator.start();
+Motor control
+motor.forward(0.5f);
+motor.backward(0.3f);
+motor.stop();
+motor.brake();
+Servo control
+servo.setAngle(45.0f);
+servo.moveToSafePosition();
+Linear actuator control
+actuator.extend(0.8f);
+actuator.retract(0.5f);
+actuator.moveToPosition(0.1f);
+
+if (actuator.isAtLimit()) {
+    actuator.stop();
+}
+6. Summary
+
+The A layer provides a unified hardware control framework:
+
+Direct control of motors, servos, and linear actuators
+Converts high-level commands into PWM and GPIO signals
+Integrates safety mechanisms (limit switches, clamping, braking)
+Maintains minimal internal state for reliability
+Serves as the foundation for perception (B layer) and control logic
 
 
 # B Layer: Perception and Judgement (Sensor Layer)
