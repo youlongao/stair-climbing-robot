@@ -1,5 +1,7 @@
 #include <chrono>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -30,30 +32,7 @@ using namespace Robot;
 namespace
 {
 constexpr float kInitialFrontSliderExtensionM = RobotConfig::Geometry::SLIDER_HOME_OFFSET_M;
-constexpr auto kControllerLoopPeriod = std::chrono::milliseconds(20);
-constexpr int kSliderHomeAttempts = 50;
-
-std::string MotionStateToString(const MotionState state)
-{
-	switch (state)
-	{
-	case MotionState::Idle:
-		return "Idle";
-	case MotionState::ApproachingStep:
-		return "ApproachingStep";
-	case MotionState::FrontClimb:
-		return "FrontClimb";
-	case MotionState::MiddleTransfer:
-		return "MiddleTransfer";
-	case MotionState::RearTransfer:
-		return "RearTransfer";
-	case MotionState::Completed:
-		return "Completed";
-	case MotionState::Fault:
-	default:
-		return "Fault";
-	}
-}
+constexpr auto kSliderHomeTimeout = std::chrono::seconds(2);
 
 class FixedPoseImuSensor final : public IImuSensor
 {
@@ -88,36 +67,95 @@ private:
 
 bool WaitForValidImuSample(ImuSensor& imu_sensor, const std::chrono::milliseconds timeout)
 {
-	const auto deadline = SteadyClock::now() + timeout;
-	while (SteadyClock::now() < deadline)
+	if (imu_sensor.latestPose().valid)
 	{
-		if (imu_sensor.latestPose().valid)
-		{
-			return true;
-		}
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(RobotConfig::Realtime::IMU_POLLINGS_MS));
+		return true;
 	}
 
-	return imu_sensor.latestPose().valid;
+	std::mutex mutex;
+	std::condition_variable cv;
+	bool pose_ready = false;
+
+	imu_sensor.setCallback([&mutex, &cv, &pose_ready](const PoseData& pose) {
+		if (!pose.valid)
+		{
+			return;
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(mutex);
+			pose_ready = true;
+		}
+
+		cv.notify_all();
+	});
+
+	std::unique_lock<std::mutex> lock(mutex);
+	(void)cv.wait_for(lock, timeout, [&pose_ready]() {
+		return pose_ready;
+	});
+	return pose_ready || imu_sensor.latestPose().valid;
 }
 
-bool HomeFrontSliderIfNeeded(FrontBalanceSlider& front_slider, ILinearAxis& front_slider_axis)
+bool WaitForValidFrontDistanceSample(FrontDistanceSensor& front_sensor, const std::chrono::milliseconds timeout)
+{
+	if (front_sensor.latest().valid)
+	{
+		return true;
+	}
+
+	std::mutex mutex;
+	std::condition_variable cv;
+	bool sample_ready = false;
+
+	front_sensor.setCallback([&mutex, &cv, &sample_ready](const DistanceReading& reading) {
+		if (!reading.valid)
+		{
+			return;
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(mutex);
+			sample_ready = true;
+		}
+
+		cv.notify_all();
+	});
+
+	std::unique_lock<std::mutex> lock(mutex);
+	(void)cv.wait_for(lock, timeout, [&sample_ready]() {
+		return sample_ready;
+	});
+	return sample_ready || front_sensor.latest().valid;
+}
+
+bool HomeFrontSliderIfNeeded(FrontBalanceSlider& front_slider,
+							 ILinearAxis& front_slider_axis,
+							 ILimitSwitch& front_slider_home_switch)
 {
 	if (front_slider_axis.getAxisState().homed)
 	{
 		return true;
 	}
 
-	for (int attempt = 0; attempt < kSliderHomeAttempts; ++attempt)
+	front_slider.home();
+	if (front_slider_axis.getAxisState().homed)
 	{
-		front_slider.home();
-		std::this_thread::sleep_for(std::chrono::milliseconds(20));
+		return true;
+	}
 
-		if (front_slider_axis.getAxisState().homed)
-		{
-			return true;
-		}
+	if (!front_slider_home_switch.waitForTrigger(kSliderHomeTimeout))
+	{
+		front_slider_axis.stop();
+		Logger::error(
+			"Front slider homing timed out. Start the robot with the front slider retracted.");
+		return false;
+	}
+
+	front_slider.home();
+	if (front_slider_axis.getAxisState().homed)
+	{
+		return true;
 	}
 
 	Logger::error(
@@ -135,15 +173,11 @@ int RunRobotController(IDriveSection& front_drive,
 					   IDownwardSensor& front_downward_sensor,
 					   IDownwardSensor* middle_support_sensor,
 					   IDownwardSensor* rear_support_sensor,
-					   IImuSensor& imu_sensor)
+					   IImuSensor& imu_sensor,
+					   ILimitSwitch& front_slider_home_switch)
 {
-	if (!front_sensor.latest().valid)
-	{
-		(void)front_sensor.readBlocking(std::chrono::microseconds(RobotConfig::Sensors::ECHO_TIMEOUT_US));
-	}
-
 	FrontBalanceSlider front_slider(front_slider_axis);
-	if (!HomeFrontSliderIfNeeded(front_slider, front_slider_axis))
+	if (!HomeFrontSliderIfNeeded(front_slider, front_slider_axis, front_slider_home_switch))
 	{
 		return 1;
 	}
@@ -215,32 +249,15 @@ int RunRobotController(IDriveSection& front_drive,
 		return 1;
 	}
 
-	MotionState last_logged_state = MotionState::Fault;
-	while (true)
+	const auto robot_state = robot_controller.waitUntilFinished();
+	if (robot_state.motion_state == MotionState::Completed)
 	{
-		robot_controller.update();
-		const auto robot_state = robot_controller.state();
-
-		if (robot_state.motion_state != last_logged_state)
-		{
-			Logger::info("Controller motion state = " + MotionStateToString(robot_state.motion_state));
-			last_logged_state = robot_state.motion_state;
-		}
-
-		if (robot_state.motion_state == MotionState::Completed)
-		{
-			Logger::info("Climbing cycle completed successfully.");
-			return 0;
-		}
-
-		if (robot_state.motion_state == MotionState::Fault)
-		{
-			Logger::error("Robot controller entered fault state: " + robot_state.safety_status.message);
-			return 1;
-		}
-
-		std::this_thread::sleep_for(kControllerLoopPeriod);
+		Logger::info("Climbing cycle completed successfully.");
+		return 0;
 	}
+
+	Logger::error("Robot controller entered fault state: " + robot_state.safety_status.message);
+	return 1;
 }
 
 int RunHardwareBringup()
@@ -287,7 +304,15 @@ int RunHardwareBringup()
 		"Check the MID_* GPIOs and MIDDLE_Wheel_* PWM channels.");
 
 	FrontDistanceSensor front_sensor;
-	warnIfStartFailed("Front ultrasonic sensor", front_sensor.start(), "Check TRIG/ECHO wiring.");
+	const bool front_sensor_started = front_sensor.start();
+	warnIfStartFailed("Front ultrasonic sensor", front_sensor_started, "Check TRIG/ECHO wiring.");
+	if (front_sensor_started &&
+		!WaitForValidFrontDistanceSample(
+			front_sensor,
+			std::chrono::milliseconds(RobotConfig::Sensors::SENSOR_STALE_MS)))
+	{
+		Logger::warn("Front ultrasonic sensor did not produce a valid sample during startup.");
+	}
 
 	DownwardSensor front_downward_sensor;
 	DownwardSensor middle_support_sensor(
@@ -412,7 +437,8 @@ int RunHardwareBringup()
 		front_downward_sensor,
 		&middle_support_sensor,
 		&rear_support_sensor,
-		*imu_sensor);
+		*imu_sensor,
+		slide1_lower_limit);
 }
 }
 

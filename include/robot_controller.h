@@ -1,6 +1,7 @@
 #ifndef ROBOT_CONTROLLER_H
 #define ROBOT_CONTROLLER_H
 
+#include <condition_variable>
 #include <mutex>
 
 #include "climbing_fsm.h"
@@ -23,11 +24,14 @@ public:
 
 	bool init();
 	void update();
+	RobotState waitUntilFinished();
 	void stopAll();
 	void resetSystem();
 	RobotState state() const;
 
 private:
+	void bindEventSources();
+
 	ClimbingFsm& climbing_fsm_;
 	MotionCoordinator& motion_coordinator_;
 	StepDetector& step_detector_;
@@ -35,6 +39,8 @@ private:
 	SafetyManager& safety_manager_;
 
 	mutable std::mutex mutex_;
+	std::condition_variable state_cv_;
+	bool callbacks_bound_{false};
 	RobotState robot_state_;
 };
 }

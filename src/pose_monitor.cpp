@@ -21,10 +21,25 @@ void PoseMonitor::bindToImu(IImuSensor& imu_sensor)
 	});
 }
 
-void PoseMonitor::updatePose(const PoseData& pose)
+void PoseMonitor::setUpdateCallback(PoseCallback callback)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
-	latest_pose_ = pose;
+	update_callback_ = std::move(callback);
+}
+
+void PoseMonitor::updatePose(const PoseData& pose)
+{
+	PoseCallback callback;
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		latest_pose_ = pose;
+		callback = update_callback_;
+	}
+
+	if (callback)
+	{
+		callback(pose);
+	}
 }
 
 PoseData PoseMonitor::currentPose() const

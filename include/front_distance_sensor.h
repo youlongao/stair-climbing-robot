@@ -1,8 +1,11 @@
 #ifndef FRONT_DISTANCE_SENSOR_H
 #define FRONT_DISTANCE_SENSOR_H
 
+#include <atomic>
+#include <condition_variable>
 #include <mutex>
 #include <string>
+#include <thread>
 
 #include "config.h"
 #include "hardware_interfaces.h"
@@ -33,14 +36,19 @@ private:
 	bool initialiseRequests();
 	void releaseRequests();
 	void clearPendingEchoEvents();
+	void workerLoop();
 
 	std::string chip_path_;
 	unsigned int trig_offset_;
 	unsigned int echo_offset_;
 
+	std::atomic_bool running_{false};
 	mutable std::mutex mutex_;
 	DistanceReading latest_reading_;
 	DistanceCallback callback_;
+	std::mutex worker_mutex_;
+	std::condition_variable worker_cv_;
+	std::thread worker_;
 
 	gpiod_chip* chip_{nullptr};
 	gpiod_line_request* trig_request_{nullptr};

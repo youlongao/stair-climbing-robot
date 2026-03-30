@@ -152,6 +152,7 @@ namespace RobotConfig
 	{	
 		// Achieved through thread cycles or timers [cite:213,360]
 		constexpr int IMU_POLLINGS_MS = 10;		// IMU data samping period (100Hz)
+		constexpr int ULTRASONIC_POLLING_MS = 50;	// Ultrasonic sampling period (20Hz)
 		constexpr int SENSOR_TASK_PRIORITY = 80;	// Sensor thread real time priority
 		constexpr int MOTION_TASK_PRIORITY = 70;	// Motion thread real time priority
 	}

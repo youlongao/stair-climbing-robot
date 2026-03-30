@@ -21,16 +21,15 @@ FrontSegment::FrontSegment(IDriveSection& drive_section,
 
 bool FrontSegment::approachStep()
 {
-	// The blocking method reads the forward distance once, and the waiting time is determined
-	// by the ultrasonic echo timeout parameter
-	const auto reading = front_distance_sensor_.readBlocking(
-		std::chrono::microseconds(RobotConfig::Sensors::ECHO_TIMEOUT_US));
+	// Read the most recent published ultrasonic sample.
+	// The sensor driver now runs its own worker thread, so this stage no longer performs
+	// blocking I/O inside the motion path.
+	const auto reading = front_distance_sensor_.latest();
 
 	// if the reading result is invalid, stop
 	if (!reading.valid)
 	{
 		drive_section_.stop();
-		Logger::warn("Front segment approach paused because the front distance sensor is invalid.");
 		return false;
 	}
 

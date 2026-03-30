@@ -17,7 +17,7 @@ MotionState ClimbingFsm::updateState(const StepAssessment& step_assessment,
 	switch (current_state_)
 	{
 	case MotionState::Idle:
-		return step_assessment.ready_for_climb ? MotionState::ApproachingStep : MotionState::Idle;
+		return MotionState::ApproachingStep;
 	case MotionState::ApproachingStep:
 		return front_phase_complete ? MotionState::FrontClimb : MotionState::ApproachingStep;
 	case MotionState::FrontClimb:

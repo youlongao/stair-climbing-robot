@@ -36,23 +36,35 @@ StepDetector::StepDetector(IFrontDistanceSensor& front_distance_sensor,
 	// Register forward distance sensor callback
 	// Update the internal cache each time a new ultrasound reading is obtained
 	front_distance_sensor_.setCallback([this](const DistanceReading& reading) {
-		std::lock_guard<std::mutex> lock(mutex_);
-		last_distance_ = reading;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			last_distance_ = reading;
+		}
+
+		notifyUpdated();
 	});
 
 	// Downward sensor callback before registration
 	// Update the front-ground/floating state cache each time the front-view state changes
 	front_downward_sensor_.setCallback([this](const DownwardReading& reading) {
-		std::lock_guard<std::mutex> lock(mutex_);
-		last_front_downward_ = reading;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			last_front_downward_ = reading;
+		}
+
+		notifyUpdated();
 	});
 
 	// If the mid-section support sensor exists, then register the mid-section state update callback
 	if (middle_support_sensor_ != nullptr)
 	{
 		middle_support_sensor_->setCallback([this](const DownwardReading& reading) {
-			std::lock_guard<std::mutex> lock(mutex_);
-			last_middle_downward_ = reading;
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				last_middle_downward_ = reading;
+			}
+
+			notifyUpdated();
 		});
 	}
 
@@ -60,10 +72,20 @@ StepDetector::StepDetector(IFrontDistanceSensor& front_distance_sensor,
 	if (rear_support_sensor_ != nullptr)
 	{
 		rear_support_sensor_->setCallback([this](const DownwardReading& reading) {
-			std::lock_guard<std::mutex> lock(mutex_);
-			last_rear_downward_ = reading;
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				last_rear_downward_ = reading;
+			}
+
+			notifyUpdated();
 		});
 	}
+}
+
+void StepDetector::setUpdateCallback(std::function<void()> callback)
+{
+	std::lock_guard<std::mutex> lock(mutex_);
+	update_callback_ = std::move(callback);
 }
 
 // Detect the current step edge state
@@ -189,5 +211,19 @@ StepAssessment StepDetector::buildAssessmentLocked() const
 	}
 
 	return assessment;
+}
+
+void StepDetector::notifyUpdated()
+{
+	std::function<void()> callback;
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		callback = update_callback_;
+	}
+
+	if (callback)
+	{
+		callback();
+	}
 }
 }

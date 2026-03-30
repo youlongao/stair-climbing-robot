@@ -37,16 +37,39 @@ FrontDistanceSensor::~FrontDistanceSensor()
 
 bool FrontDistanceSensor::start()
 {
-	if (trig_request_ != nullptr && echo_request_ != nullptr)
+	if (running_.load())
 	{
 		return true;
 	}
 
-	return initialiseRequests();
+	if (!initialiseRequests())
+	{
+		return false;
+	}
+
+	(void)readBlocking(std::chrono::microseconds(RobotConfig::Sensors::ECHO_TIMEOUT_US));
+
+	running_.store(true);
+	worker_ = std::thread(&FrontDistanceSensor::workerLoop, this);
+	Logger::info("Front distance sensor worker thread started.");
+	return true;
 }
 
 void FrontDistanceSensor::stop()
 {
+	if (!running_.exchange(false))
+	{
+		releaseRequests();
+		return;
+	}
+
+	worker_cv_.notify_all();
+
+	if (worker_.joinable())
+	{
+		worker_.join();
+	}
+
 	releaseRequests();
 }
 
@@ -169,6 +192,22 @@ void FrontDistanceSensor::setCallback(DistanceCallback callback)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	callback_ = std::move(callback);
+}
+
+void FrontDistanceSensor::workerLoop()
+{
+	const auto sample_period = std::chrono::milliseconds(RobotConfig::Realtime::ULTRASONIC_POLLING_MS);
+	const auto timeout = std::chrono::microseconds(RobotConfig::Sensors::ECHO_TIMEOUT_US);
+
+	while (running_.load())
+	{
+		(void)readBlocking(timeout);
+
+		std::unique_lock<std::mutex> lock(worker_mutex_);
+		worker_cv_.wait_for(lock, sample_period, [this]() {
+			return !running_.load();
+		});
+	}
 }
 
 float FrontDistanceSensor::pulseWidthToDistance(const std::uint64_t pulse_width_ns) const
