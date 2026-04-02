@@ -371,41 +371,53 @@ int RunHardwareBringup()
 
 	LinearActuator first_lift_axis(
 		pwm_driver,
-		RobotConfig::PWM_Channels::LIFT_1_RPWM,
-		RobotConfig::PWM_Channels::LIFT_1_LPWM,
+		RobotConfig::PWM_Channels::LIFT_1_IN1_IN3,
+		RobotConfig::PWM_Channels::LIFT_1_IN2_IN4,
 		nullptr,
 		&lift1_upper_limit,
 		&lift1_lower_limit,
 		RobotConfig::Geometry::BODY_LIFT_MAX_TRAVEL_M);
 	LinearActuator front_slider_axis(
 		pwm_driver,
-		RobotConfig::PWM_Channels::SLIDE_1_RPWM,
-		RobotConfig::PWM_Channels::SLIDE_1_LPWM,
+		RobotConfig::PWM_Channels::SLIDE_1_IN1_IN3,
+		RobotConfig::PWM_Channels::SLIDE_1_IN2_IN4,
 		nullptr,
 		&slide1_upper_limit,
 		&slide1_lower_limit,
 		RobotConfig::Geometry::SLIDER_MAX_TRAVEL_M);
 	LinearActuator rear_slide_axis(
 		pwm_driver,
-		RobotConfig::PWM_Channels::SLIDE_2_RPWM,
-		RobotConfig::PWM_Channels::SLIDE_2_LPWM,
+		RobotConfig::PWM_Channels::SLIDE_2_IN1_IN3,
+		RobotConfig::PWM_Channels::SLIDE_2_IN2_IN4,
 		nullptr,
 		&slide2_upper_limit,
 		&slide2_lower_limit,
 		RobotConfig::Geometry::SLIDER_MAX_TRAVEL_M);
 	LinearActuator rear_lift_axis(
 		pwm_driver,
-		RobotConfig::PWM_Channels::LIFT_2_RPWM,
-		RobotConfig::PWM_Channels::LIFT_2_LPWM,
+		RobotConfig::PWM_Channels::LIFT_2_IN1_IN3,
+		RobotConfig::PWM_Channels::LIFT_2_IN2_IN4,
 		nullptr,
 		&lift2_upper_limit,
 		&lift2_lower_limit,
 		RobotConfig::Geometry::BODY_LIFT_MAX_TRAVEL_M);
 
-	warnIfStartFailed("Lift-1 actuator", first_lift_axis.start(), "Check BTS7960 channel 4/5 wiring.");
-	warnIfStartFailed("Slide-1 actuator", front_slider_axis.start(), "Check BTS7960 channel 8/9 wiring.");
-	warnIfStartFailed("Slide-2 actuator", rear_slide_axis.start(), "Check BTS7960 channel 10/11 wiring.");
-	warnIfStartFailed("Lift-2 actuator", rear_lift_axis.start(), "Check BTS7960 channel 6/7 wiring.");
+	warnIfStartFailed(
+		"Lift-1 actuator",
+		first_lift_axis.start(),
+		"Check DRV8833 #1: CH4 -> IN1+IN3, CH5 -> IN2+IN4, with OUT1+OUT3 and OUT2+OUT4 paralleled.");
+	warnIfStartFailed(
+		"Slide-1 actuator",
+		front_slider_axis.start(),
+		"Check DRV8833 #3: CH8 -> IN1+IN3, CH9 -> IN2+IN4, with OUT1+OUT3 and OUT2+OUT4 paralleled.");
+	warnIfStartFailed(
+		"Slide-2 actuator",
+		rear_slide_axis.start(),
+		"Check DRV8833 #4: CH10 -> IN1+IN3, CH11 -> IN2+IN4, with OUT1+OUT3 and OUT2+OUT4 paralleled.");
+	warnIfStartFailed(
+		"Lift-2 actuator",
+		rear_lift_axis.start(),
+		"Check DRV8833 #2: CH6 -> IN1+IN3, CH7 -> IN2+IN4, with OUT1+OUT3 and OUT2+OUT4 paralleled.");
 
 	std::unique_ptr<IImuSensor> imu_sensor;
 	auto hardware_imu = std::make_unique<ImuSensor>();

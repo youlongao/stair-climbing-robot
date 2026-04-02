@@ -13,7 +13,7 @@ namespace RobotConfig
 	{
 		constexpr uint8_t BUS_ID = 1;	// pin5 defaults I2C bus
 		constexpr uint8_t PCA9685_ADDR = 0x40;	// PCA9685 PWM expansion board address
-		constexpr int PWM_FREQ = 50;	// Motor drive PWM frequency (50Hz)
+		constexpr int PWM_FREQ = 1000;	// Shared PWM frequency for wheel/linear DC motor driving (1kHz)
 	}
 
 	namespace IMU
@@ -37,8 +37,11 @@ namespace RobotConfig
 		constexpr float PCA9685_OSCILLATOR_HZ = 25'000'000.0F;
 		constexpr float PCA9685_RESOLUTION = 4096.0F;
 	}
-	// ==== PCA9685 PWM channel allocate (0-15) ====
-	// The speed control signal for the TB6612 and the speed regulation signal for the BTS7960
+	// ==== PCA9685 PWM channel allocation (0-15) ====
+	// TB6612 uses one PWM channel per wheel, while each DRV8833-driven actuator uses
+	// two PWM channels:
+	// - *_IN1_IN3 drives the paralleled IN1 + IN3 inputs
+	// - *_IN2_IN4 drives the paralleled IN2 + IN4 inputs
 	namespace PWM_Channels
 	{
 		// TB6612 drive wheels (front and middle sections; rear support section is passive)
@@ -47,16 +50,16 @@ namespace RobotConfig
 		constexpr uint8_t MIDDLE_Wheel_L = 2;	// Middle Left wheel PWMA
 		constexpr uint8_t MIDDLE_Wheel_R = 3;	// Middle Right wheel PWMB
 
-		// BTS7960 Lifting and Sliding module (high-power motor)
-		constexpr uint8_t LIFT_1_RPWM = 4;	// Lifting module 1, forward speed regulation
-		constexpr uint8_t LIFT_1_LPWM = 5;	// Lifting module 1, reverse speed adjustment
-		constexpr uint8_t LIFT_2_RPWM = 6;	// Lifting module 2, forward speed regulation
-		constexpr uint8_t LIFT_2_LPWM = 7;	// Lifting module 2, reverse speed adjustment
+		// DRV8833 lifting/sliding actuators; each carrier is used as one paralleled channel
+		constexpr uint8_t LIFT_1_IN1_IN3 = 4;	// First lift actuator: DRV8833 IN1 + IN3
+		constexpr uint8_t LIFT_1_IN2_IN4 = 5;	// First lift actuator: DRV8833 IN2 + IN4
+		constexpr uint8_t LIFT_2_IN1_IN3 = 6;	// Second lift actuator: DRV8833 IN1 + IN3
+		constexpr uint8_t LIFT_2_IN2_IN4 = 7;	// Second lift actuator: DRV8833 IN2 + IN4
 
-		constexpr uint8_t SLIDE_1_RPWM = 8;		// Sliding module 1, forward speed regulation
-		constexpr uint8_t SLIDE_1_LPWM = 9;		// Sliding module 1, reverse speed adjustment
-		constexpr uint8_t SLIDE_2_RPWM = 10;	// Sliding module 2, forward speed regulation
-		constexpr uint8_t SLIDE_2_LPWM = 11;	// Sliding module 2, reverse speed adjustment
+		constexpr uint8_t SLIDE_1_IN1_IN3 = 8;		// Front slider: DRV8833 IN1 + IN3
+		constexpr uint8_t SLIDE_1_IN2_IN4 = 9;		// Front slider: DRV8833 IN2 + IN4
+		constexpr uint8_t SLIDE_2_IN1_IN3 = 10;	// Rear slider: DRV8833 IN1 + IN3
+		constexpr uint8_t SLIDE_2_IN2_IN4 = 11;	// Rear slider: DRV8833 IN2 + IN4
 	}
 
 	// Raspberry Pi GPIO Assignment (libgpio v2)
