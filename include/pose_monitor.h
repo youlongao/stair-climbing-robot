@@ -13,6 +13,7 @@ class PoseMonitor
 {
 public:
 	explicit PoseMonitor(IImuSensor* imu_sensor = nullptr);
+	~PoseMonitor();
 
 	void bindToImu(IImuSensor& imu_sensor);
 	void setUpdateCallback(PoseCallback callback);
@@ -23,6 +24,7 @@ public:
 	bool isOverTilt() const;
 
 private:
+	IImuSensor* imu_sensor_{nullptr};
 	mutable std::mutex mutex_;
 	PoseData latest_pose_;
 	PoseCallback update_callback_;

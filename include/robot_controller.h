@@ -3,6 +3,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <string>
 
 #include "climbing_fsm.h"
 #include "motion_coordinator.h"
@@ -21,8 +22,10 @@ public:
 					StepDetector& step_detector,
 					PoseMonitor& pose_monitor,
 					SafetyManager& safety_manager);
+	~RobotController();
 
 	bool init();
+	void requestStop(std::string message = "Stop requested.");
 	void update();
 	RobotState waitUntilFinished();
 	void stopAll();

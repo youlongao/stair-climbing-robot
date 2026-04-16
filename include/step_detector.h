@@ -27,6 +27,7 @@ public:
 				 IDownwardSensor* middle_support_sensor = nullptr,
 				 IDownwardSensor* rear_support_sensor = nullptr,
 				 std::function<bool()> pose_safe = {});
+	~StepDetector();
 
 	void setUpdateCallback(std::function<void()> callback);
 	StepAssessment detectStepEdge();	// Used to determine whether a step edge has been detected

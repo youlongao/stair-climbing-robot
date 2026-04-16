@@ -131,12 +131,15 @@ DistanceReading FrontDistanceSensor::readBlocking(const std::chrono::microsecond
 
 		for (int index = 0; index < events_read; ++index)
 		{
-			const auto* event = gpiod_edge_event_buffer_get_event(event_buffer_, index);
-			if (event == nullptr)
+			const auto* raw_event = gpiod_edge_event_buffer_get_event(event_buffer_, index);
+			if (raw_event == nullptr)
 			{
 				continue;
 			}
 
+			// Some libgpiod builds expose a const-returning buffer accessor while
+			// the event query helpers still take a non-const pointer.
+			auto* event = const_cast<gpiod_edge_event*>(raw_event);
 			const auto type = gpiod_edge_event_get_event_type(event);
 			const auto timestamp_ns = gpiod_edge_event_get_timestamp_ns(event);
 

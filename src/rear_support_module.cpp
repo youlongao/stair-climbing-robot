@@ -1,6 +1,10 @@
 #include "rear_support_module.h"
 
+#include <chrono>
+#include <string>
 #include <utility>
+
+#include "logger.h"
 
 namespace Robot
 {
@@ -58,6 +62,86 @@ bool RearSupportModule::transferSupportToStep()
 
 	// The latter part has not yet been completed; the current process continues
 	return false;
+}
+
+bool RearSupportModule::moveSlideBackwardUntilLimit()
+{
+	if (rear_slide_axis_ == nullptr)
+	{
+		return true;
+	}
+
+	const auto axis_state = rear_slide_axis_->getAxisState();
+	if (axis_state.at_lower_limit)
+	{
+		rear_slide_axis_->holdPosition();
+		Logger::info("Rear slider reached the rear lower limit.");
+		return true;
+	}
+
+	logRearSlideBackStatus(axis_state);
+	rear_slide_axis_->moveNormalized(RobotConfig::Motion::SLIDER_HOME_SPEED);
+	return false;
+}
+
+bool RearSupportModule::moveSlideForwardUntilLimit()
+{
+	if (rear_slide_axis_ == nullptr)
+	{
+		return true;
+	}
+
+	const auto axis_state = rear_slide_axis_->getAxisState();
+	if (axis_state.at_upper_limit)
+	{
+		rear_slide_axis_->holdPosition();
+		Logger::info("Rear slider reached the front upper limit.");
+		return true;
+	}
+
+	rear_slide_axis_->moveNormalized(RobotConfig::Motion::CREEP_SPEED);
+	return false;
+}
+
+bool RearSupportModule::liftRearUntilUpperLimit()
+{
+	if (rear_lift_axis_ == nullptr)
+	{
+		return true;
+	}
+
+	const auto axis_state = rear_lift_axis_->getAxisState();
+	if (axis_state.at_upper_limit)
+	{
+		rear_lift_axis_->holdPosition();
+		Logger::info("Rear lift reached the upper limit.");
+		return true;
+	}
+
+	rear_lift_axis_->moveNormalized(RobotConfig::Motion::BODY_LIFT_SPEED);
+	return false;
+}
+
+bool RearSupportModule::isSupportConfirmed() const
+{
+	return rear_support_confirmed_ && rear_support_confirmed_();
+}
+
+void RearSupportModule::logRearSlideBackStatus(const AxisState& axis_state)
+{
+	const auto now = SteadyClock::now();
+	if (last_rear_slide_back_log_time_ != Timestamp{} &&
+		now - last_rear_slide_back_log_time_ < std::chrono::seconds(1))
+	{
+		return;
+	}
+
+	last_rear_slide_back_log_time_ = now;
+	Logger::info(
+		std::string("RearSliderBack waiting: lower_limit=") +
+		(axis_state.at_lower_limit ? "1" : "0") +
+		", upper_limit=" +
+		(axis_state.at_upper_limit ? "1" : "0"));
 }
 
 // Maintain the current position of the rear support structure

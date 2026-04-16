@@ -21,6 +21,7 @@ public:
 				   ILimitSwitch* lower_limit = nullptr,
 				   float max_travel_m = RobotConfig::Geometry::BODY_LIFT_MAX_TRAVEL_M,
 				   std::string chip_path = RobotConfig::Platform::GPIO_CHIP);
+	~LinearActuator() override;
 
 	bool start();
 	void extend(float speed = RobotConfig::Motion::BODY_LIFT_SPEED);

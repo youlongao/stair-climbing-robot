@@ -1,12 +1,11 @@
 #include "climbing_fsm.h"
 
+#include "config.h"
+
 namespace Robot
 {
-MotionState ClimbingFsm::updateState(const StepAssessment& step_assessment,
-									 const SafetyStatus& safety_status,
-									 const bool front_phase_complete,
-									 const bool middle_transfer_phase_complete,
-									 const bool rear_transfer_phase_complete)
+MotionState ClimbingFsm::updateState(const SafetyStatus& safety_status,
+									 const bool phase_complete)
 {
 	if (safety_status.level == SafetyLevel::Fault)
 	{
@@ -14,18 +13,40 @@ MotionState ClimbingFsm::updateState(const StepAssessment& step_assessment,
 		return current_state_;
 	}
 
+	const bool state_complete = phase_complete;
+
 	switch (current_state_)
 	{
 	case MotionState::Idle:
 		return MotionState::ApproachingStep;
 	case MotionState::ApproachingStep:
-		return front_phase_complete ? MotionState::FrontClimb : MotionState::ApproachingStep;
-	case MotionState::FrontClimb:
-		return front_phase_complete ? MotionState::MiddleTransfer : MotionState::FrontClimb;
-	case MotionState::MiddleTransfer:
-		return middle_transfer_phase_complete ? MotionState::RearTransfer : MotionState::MiddleTransfer;
-	case MotionState::RearTransfer:
-		return rear_transfer_phase_complete ? MotionState::Completed : MotionState::RearTransfer;
+		return state_complete ? MotionState::RearSliderBack : MotionState::ApproachingStep;
+	case MotionState::RearSliderBack:
+		return state_complete ? MotionState::FrontLift : MotionState::RearSliderBack;
+	case MotionState::FrontLift:
+		return state_complete ? MotionState::MiddleDriveToFrontLanding : MotionState::FrontLift;
+	case MotionState::MiddleDriveToFrontLanding:
+		return state_complete ? MotionState::MiddleClimb : MotionState::MiddleDriveToFrontLanding;
+	case MotionState::MiddleClimb:
+		return state_complete ? MotionState::FrontDriveToMiddleLanding : MotionState::MiddleClimb;
+	case MotionState::FrontDriveToMiddleLanding:
+		return state_complete ? MotionState::RearSliderForward : MotionState::FrontDriveToMiddleLanding;
+	case MotionState::RearSliderForward:
+		return state_complete ? MotionState::RearLift : MotionState::RearSliderForward;
+	case MotionState::RearLift:
+		return state_complete ? MotionState::FinalDriveToRearLanding : MotionState::RearLift;
+	case MotionState::FinalDriveToRearLanding:
+		if (!state_complete)
+		{
+			return MotionState::FinalDriveToRearLanding;
+		}
+		++climb_cycles_completed_;
+		if (RobotConfig::Motion::MAX_CLIMB_CYCLES > 0 &&
+			climb_cycles_completed_ >= RobotConfig::Motion::MAX_CLIMB_CYCLES)
+		{
+			return MotionState::Completed;
+		}
+		return MotionState::ApproachingStep;
 	case MotionState::Completed:
 		return MotionState::Completed;
 	case MotionState::Fault:
@@ -39,6 +60,11 @@ bool ClimbingFsm::transitionTo(const MotionState next_state)
 	if (current_state_ == next_state)
 	{
 		return false;
+	}
+
+	if (next_state == MotionState::Idle)
+	{
+		climb_cycles_completed_ = 0;
 	}
 
 	current_state_ = next_state;

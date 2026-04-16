@@ -36,6 +36,12 @@ LinearActuator::LinearActuator(const unsigned int forward_gpio,
 {
 }
 
+LinearActuator::~LinearActuator()
+{
+	stop();
+	releaseLines();
+}
+
 bool LinearActuator::start()
 {
 	if (request_ == nullptr && !requestLines())

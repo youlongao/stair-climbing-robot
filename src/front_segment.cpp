@@ -1,5 +1,7 @@
 #include "front_segment.h"
 
+#include <cmath>
+#include <string>
 #include <utility>
 
 #include "logger.h"
@@ -27,27 +29,56 @@ bool FrontSegment::approachStep()
 	const auto reading = front_distance_sensor_.latest();
 
 	// if the reading result is invalid, stop
-	if (!reading.valid)
+	if (!reading.valid || !std::isfinite(reading.distance_m))
 	{
+		approach_close_sample_count_ = 0;
+		approach_assist_speed_ = 0.0F;
 		drive_section_.stop();
 		return false;
 	}
 
-	
-	// if distance > stair's maximum detected distance -- move forward by approaching speed
-	if (reading.distance_m > RobotConfig::Sensors::STEP_FACE_MAX_DISTANCE_M)
+	if (reading.distance_m < RobotConfig::Sensors::STEP_FACE_MIN_DISTANCE_M)
 	{
-		drive_section_.setNormalizedSpeed(RobotConfig::Motion::APPROACH_SPEED,
-										  RobotConfig::Motion::APPROACH_SPEED);
+		approach_close_sample_count_ = 0;
+		approach_assist_speed_ = 0.0F;
+		drive_section_.stop();
+		Logger::warn("Ignoring out-of-range front distance sample: " + std::to_string(reading.distance_m) + " m.");
 		return false;
 	}
 
-	// enter the step detection range, stop the car first and then determine whether we actually reached 
-	// the trigger window
-	drive_section_.stop();
+	// Keep the whole vehicle driving until it is truly close enough to start the
+	// climb sequence. STEP_FACE_MAX_DISTANCE_M is only the detection band; using
+	// it as the stop threshold makes the robot prepare to lift too early.
+	if (reading.distance_m > RobotConfig::Sensors::READY_TO_CLIMB_DISTANCE_M)
+	{
+		approach_close_sample_count_ = 0;
+		approach_assist_speed_ =
+			reading.distance_m <= RobotConfig::Sensors::STEP_FACE_MAX_DISTANCE_M ?
+				RobotConfig::Motion::CREEP_SPEED :
+				RobotConfig::Motion::APPROACH_SPEED;
+		drive_section_.setNormalizedSpeed(approach_assist_speed_, approach_assist_speed_);
+		return false;
+	}
 
-	// distance >= minimum distance threshold
-	return reading.distance_m >= RobotConfig::Sensors::STEP_FACE_MIN_DISTANCE_M;
+	++approach_close_sample_count_;
+	if (approach_close_sample_count_ < RobotConfig::Sensors::APPROACH_CLOSE_CONFIRM_SAMPLES)
+	{
+		approach_assist_speed_ = RobotConfig::Motion::CREEP_SPEED;
+		drive_section_.setNormalizedSpeed(approach_assist_speed_, approach_assist_speed_);
+		return false;
+	}
+
+	// Once the robot reaches or passes the close-range threshold, stop driving and let
+	// the state machine prepare the lift sequence instead of pushing into the step.
+	approach_assist_speed_ = 0.0F;
+	drive_section_.stop();
+	Logger::info("Approach threshold confirmed at front distance " + std::to_string(reading.distance_m) + " m.");
+	return true;
+}
+
+float FrontSegment::approachAssistSpeed() const
+{
+	return approach_assist_speed_;
 }
 
 // raise the front section and clime step slowly
@@ -78,6 +109,31 @@ bool FrontSegment::liftFrontToStep()
 	}
 
 	// the front wheel has not yet landed; continue the current action 
+	return false;
+}
+
+bool FrontSegment::liftFrontUntilClearance()
+{
+	drive_section_.brake();
+
+	if (front_lift_axis_ != nullptr)
+	{
+		front_lift_axis_->moveNormalized(RobotConfig::Motion::BODY_LIFT_SPEED);
+	}
+
+	const auto reading = front_distance_sensor_.latest();
+	const bool clearance_ok =
+		reading.valid && reading.distance_m >= RobotConfig::Sensors::STEP_COMPLETION_CLEARANCE_M;
+
+	if (clearance_ok)
+	{
+		if (front_lift_axis_ != nullptr)
+		{
+			front_lift_axis_->holdPosition();
+		}
+		return true;
+	}
+
 	return false;
 }
 
@@ -127,6 +183,26 @@ bool FrontSegment::placeFrontOnStep()
 	drive_section_.setNormalizedSpeed(RobotConfig::Motion::CREEP_SPEED,
 									  RobotConfig::Motion::CREEP_SPEED);
 	return false;
+}
+
+void FrontSegment::driveForward(const float speed)
+{
+	drive_section_.setNormalizedSpeed(speed, speed);
+}
+
+void FrontSegment::stopDrive()
+{
+	drive_section_.stop();
+}
+
+void FrontSegment::brakeDrive()
+{
+	drive_section_.brake();
+}
+
+bool FrontSegment::isSurfaceConfirmed() const
+{
+	return surface_confirmed_ && surface_confirmed_();
 }
 
 // stop all front section actions, including front drive wheels and lifting shaft

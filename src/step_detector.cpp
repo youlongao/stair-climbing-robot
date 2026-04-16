@@ -82,6 +82,20 @@ StepDetector::StepDetector(IFrontDistanceSensor& front_distance_sensor,
 	}
 }
 
+StepDetector::~StepDetector()
+{
+	front_distance_sensor_.setCallback({});
+	front_downward_sensor_.setCallback({});
+	if (middle_support_sensor_ != nullptr)
+	{
+		middle_support_sensor_->setCallback({});
+	}
+	if (rear_support_sensor_ != nullptr)
+	{
+		rear_support_sensor_->setCallback({});
+	}
+}
+
 void StepDetector::setUpdateCallback(std::function<void()> callback)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
@@ -140,19 +154,22 @@ StepAssessment StepDetector::buildAssessmentLocked() const
 	const bool front_fresh = last_distance_.valid &&
 		isFresh(last_distance_.timestamp, std::chrono::milliseconds(RobotConfig::Sensors::SENSOR_STALE_MS));
 	
-	// Determine if the forward downward look data is valid and fresh
+	// Determine if the forward downward look data is valid and fresh.
+	// These are event-driven digital sensors (MCP23017 interrupt path): a
+	// stable pin produces no new event, so use the wider DOWNWARD_SENSOR_STALE_MS
+	// window rather than the ultrasonic SENSOR_STALE_MS window.
 		const bool front_downward_fresh = last_front_downward_.valid &&
-		isFresh(last_front_downward_.timestamp, std::chrono::milliseconds(RobotConfig::Sensors::SENSOR_STALE_MS));
-	
+		isFresh(last_front_downward_.timestamp, std::chrono::milliseconds(RobotConfig::Sensors::DOWNWARD_SENSOR_STALE_MS));
+
 	// Determine if the mid-range support data is valid and recent
 		const bool middle_downward_fresh = middle_support_sensor_ != nullptr &&
 		last_middle_downward_.valid &&
-		isFresh(last_middle_downward_.timestamp, std::chrono::milliseconds(RobotConfig::Sensors::SENSOR_STALE_MS));
-	
+		isFresh(last_middle_downward_.timestamp, std::chrono::milliseconds(RobotConfig::Sensors::DOWNWARD_SENSOR_STALE_MS));
+
 	// Determine if the subsequent support data is valid and recent
 		const bool rear_downward_fresh = rear_support_sensor_ != nullptr &&
 		last_rear_downward_.valid &&
-		isFresh(last_rear_downward_.timestamp, std::chrono::milliseconds(RobotConfig::Sensors::SENSOR_STALE_MS));
+		isFresh(last_rear_downward_.timestamp, std::chrono::milliseconds(RobotConfig::Sensors::DOWNWARD_SENSOR_STALE_MS));
 	
 	// Determine if the current posture is safe
 	// If no gesture determination callback is provided, the default is safe

@@ -34,6 +34,14 @@ namespace RobotConfig
 		inline constexpr const char* I2C_DEVICE_PREFIX = "/dev/i2c-";
 	}
 
+	// Temporary bring-up switches for full-vehicle tests with incomplete hardware.
+	// Set both flags back to false once the IMU and front slider are installed.
+	namespace TestMode
+	{
+		constexpr bool BYPASS_IMU = true;
+		constexpr bool BYPASS_FRONT_SLIDER = true;
+	}
+
 	namespace PWM
 	{
 		constexpr float PCA9685_OSCILLATOR_HZ = 25'000'000.0F;
@@ -93,6 +101,8 @@ namespace RobotConfig
 	{
 		constexpr int ULTRASONIC_TRIG = 16;	// Physical pin 36
 		constexpr int ULTRASONIC_ECHO = 26;	// Physical pin 37
+		constexpr unsigned int MCP23017_INTA = 19;	// Physical pin 35 — port-A interrupt
+		constexpr unsigned int MCP23017_INTB = 20;	// Physical pin 38 — port-B interrupt
 	}
 
 	// Legacy direct-input defaults retained so the old standalone GPIO-input
@@ -126,17 +136,34 @@ namespace RobotConfig
 
 	namespace Sensors
 	{
+		// TCRT5000 DO threshold is adjusted on the sensor module potentiometer.
+		// These flags only describe which DO logic level means "surface detected".
 		constexpr bool DOWNWARD_ACTIVE_ON_SURFACE = true;
+		constexpr bool FRONT_DOWNWARD_ACTIVE_ON_SURFACE = DOWNWARD_ACTIVE_ON_SURFACE;
+		constexpr bool MIDDLE_SUPPORT_ACTIVE_ON_SURFACE = DOWNWARD_ACTIVE_ON_SURFACE;
+		constexpr bool REAR_SUPPORT_ACTIVE_ON_SURFACE = DOWNWARD_ACTIVE_ON_SURFACE;
 		constexpr int DOWNWARD_DEBOUNCE_US = 2500;
 		constexpr int ECHO_TIMEOUT_US = 30000;
 		constexpr int ECHO_EVENT_BUFFER_SIZE = 8;
 		constexpr int GPIO_EVENT_BUFFER_SIZE = 16;
 		constexpr float SPEED_OF_SOUND_MPS = 343.0f;
-		constexpr float STEP_FACE_MIN_DISTANCE_M = 0.04f;
+		constexpr float STEP_FACE_MIN_DISTANCE_M = 0.02f;
 		constexpr float STEP_FACE_MAX_DISTANCE_M = 0.25f;
-		constexpr float READY_TO_CLIMB_DISTANCE_M = 0.12f;
+		constexpr float READY_TO_CLIMB_DISTANCE_M = 0.07f;
+		constexpr int APPROACH_CLOSE_CONFIRM_SAMPLES = 3;
 		constexpr float STEP_COMPLETION_CLEARANCE_M = 0.18f;
 		constexpr int SENSOR_STALE_MS = 250;
+		// Event-driven digital sensors (MCP23017 downward / support sensors)
+		// only push a new reading on a pin-change interrupt.  A stable pin is
+		// therefore perfectly fresh; use a much wider stale window so that a
+		// sensor holding its state for several seconds is not discarded.
+		constexpr int DOWNWARD_SENSOR_STALE_MS = 10000;
+		constexpr int FRONT_DISTANCE_STARTUP_TIMEOUT_MS = 3000;
+		// Number of consecutive invalid HC-SR04 readings before the safety
+		// manager declares a FrontDistanceTimeout fault.  A single missed echo
+		// is normal (the sensor occasionally gets no return); requiring several
+		// consecutive failures avoids false-positives from transient no-echo events.
+		constexpr int FRONT_DISTANCE_MAX_CONSECUTIVE_INVALID = 3;
 	}
 
 	namespace Geometry
@@ -169,6 +196,23 @@ namespace RobotConfig
 		constexpr float BODY_LOWER_SPEED = -0.30f;
 		constexpr float SLIDER_HOME_SPEED = -0.25f;
 		constexpr float HOLD_DEADBAND_M = 0.003f;
+		// Maximum time (seconds) to wait for a downward sensor to confirm landing.
+		// If the sensor never sees the required drop-then-surface sequence within
+		// this window the coordinator raises a fault rather than waiting forever.
+		constexpr int SENSOR_CONFIRM_TIMEOUT_S = 30;
+		// Maximum time (seconds) to detect a step while driving forward in
+		// ApproachingStep.  If the ultrasonic sensor never reads a step face
+		// within the band, the coordinator raises an actuator fault so the robot
+		// does not drive indefinitely.
+		constexpr int APPROACH_TIMEOUT_S = 60;
+		// Maximum number of stair steps to climb before transitioning to
+		// MotionState::Completed.  Set to 0 for continuous climbing (robot runs
+		// until an external stop signal is received).
+		constexpr int MAX_CLIMB_CYCLES = 1;
+		// Maximum time (seconds) to wait for a limit switch or actuator to reach
+		// its target position. Covers RearSliderBack/Forward, FrontLift,
+		// MiddleClimb, and RearLift states.
+		constexpr int ACTUATOR_CONFIRM_TIMEOUT_S = 30;
 	}
 
 	namespace Safety

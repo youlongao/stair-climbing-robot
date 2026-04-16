@@ -53,6 +53,19 @@ bool MiddleLiftModule::lowerBody()
 	return moveToHeight(0.0F);
 }
 
+bool MiddleLiftModule::lowerUntilLowerLimit()
+{
+	const auto axis_state = lift_axis_.getAxisState();
+	if (axis_state.at_lower_limit)
+	{
+		holdPosition();
+		return true;
+	}
+
+	lift_axis_.moveNormalized(RobotConfig::Motion::BODY_LOWER_SPEED);
+	return false;
+}
+
 // raise main body to target height
 bool MiddleLiftModule::moveToHeight(const float target_height_m)
 {

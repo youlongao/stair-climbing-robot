@@ -20,7 +20,8 @@ public:
 
 	bool advanceToStep();	// control mid-section drive wheels move forward until the mid-section 
 							// support successfully confirmed
-	void driveForward();	// move forward
+	void driveForward(float speed = RobotConfig::Motion::APPROACH_SPEED);	// move forward
+	bool isSupportConfirmed() const;	// true after the middle downward sensor confirms landing
 	void holdPosition();	// stop the movement of the middle drive wheels, keeping current state
 
 private:

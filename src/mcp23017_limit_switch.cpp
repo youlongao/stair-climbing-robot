@@ -33,18 +33,46 @@ bool Mcp23017LimitSwitch::start()
 		return false;
 	}
 
+	// Read the current pin state synchronously so the initial value is valid
+	// before the interrupt thread takes over delivery.
 	bool raw_value = false;
 	if (!driver_->readPin(pin_, raw_value))
 	{
 		return false;
 	}
 
-	updateFromValue(raw_value, true);
+	updateFromValue(raw_value, false);
 	last_raw_value_ = raw_value;
 	last_raw_value_valid_ = true;
-
 	running_.store(true);
-	worker_ = std::thread(&Mcp23017LimitSwitch::workerLoop, this);
+
+	// Register an interrupt-driven callback with the driver.  The driver calls
+	// this from its single interrupt thread whenever any MCP23017 pin changes
+	// — no polling, no sleep.
+	callback_token_ = driver_->registerPinChangeCallback(
+		[this](const std::uint8_t gpioa, const std::uint8_t gpiob) {
+			// Extract the bit for our specific pin from the appropriate port.
+			const std::uint8_t port = (pin_ < 8U) ? gpioa : gpiob;
+			const std::uint8_t bit  = (pin_ < 8U) ? pin_ : static_cast<std::uint8_t>(pin_ - 8U);
+			const bool raw = ((port >> bit) & 1U) != 0U;
+
+			bool changed = false;
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				changed = !last_raw_value_valid_ || (raw != last_raw_value_);
+				if (changed)
+				{
+					last_raw_value_ = raw;
+					last_raw_value_valid_ = true;
+				}
+			}
+
+			if (changed)
+			{
+				updateFromValue(raw, true);
+			}
+		});
+
 	return true;
 }
 
@@ -55,12 +83,16 @@ void Mcp23017LimitSwitch::stop()
 		return;
 	}
 
-	trigger_cv_.notify_all();
-
-	if (worker_.joinable())
+	// Unregister first: this blocks until any in-progress callback has finished,
+	// guaranteeing the callback cannot fire after stop() returns.
+	if (driver_ && callback_token_ != Mcp23017Driver::kInvalidToken)
 	{
-		worker_.join();
+		driver_->unregisterPinChangeCallback(callback_token_);
+		callback_token_ = Mcp23017Driver::kInvalidToken;
 	}
+
+	// Unblock any thread waiting in waitForTrigger().
+	trigger_cv_.notify_all();
 }
 
 bool Mcp23017LimitSwitch::isTriggered() const
@@ -104,27 +136,6 @@ void Mcp23017LimitSwitch::setCallback(LimitSwitchCallback callback)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	callback_ = std::move(callback);
-}
-
-void Mcp23017LimitSwitch::workerLoop()
-{
-	const auto poll_period = std::chrono::milliseconds(RobotConfig::MCP23017::POLL_INTERVAL_MS);
-
-	while (running_.load())
-	{
-		bool raw_value = false;
-		if (driver_ && driver_->readPin(pin_, raw_value))
-		{
-			if (!last_raw_value_valid_ || raw_value != last_raw_value_)
-			{
-				last_raw_value_ = raw_value;
-				last_raw_value_valid_ = true;
-				updateFromValue(raw_value, true);
-			}
-		}
-
-		std::this_thread::sleep_for(poll_period);
-	}
 }
 
 void Mcp23017LimitSwitch::updateFromValue(const bool raw_value, const bool notify_edge)

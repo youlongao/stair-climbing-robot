@@ -3,9 +3,9 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
 #include <memory>
 #include <mutex>
-#include <thread>
 
 #include "config.h"
 #include "hardware_interfaces.h"
@@ -35,7 +35,6 @@ public:
 	void setCallback(LimitSwitchCallback callback) override;
 
 private:
-	void workerLoop();
 	void updateFromValue(bool raw_value, bool notify_edge);
 
 	std::shared_ptr<Mcp23017Driver> driver_;
@@ -48,7 +47,7 @@ private:
 	LimitSwitchState state_;
 	LimitSwitchCallback callback_;
 	std::atomic_bool running_{false};
-	std::thread worker_;
+	std::size_t callback_token_{Mcp23017Driver::kInvalidToken};
 	bool pending_trigger_{false};
 	bool last_raw_value_valid_{false};
 	bool last_raw_value_{false};

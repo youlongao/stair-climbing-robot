@@ -30,10 +30,14 @@ bool MiddleDriveModule::advanceToStep()
 }
 
 // directly control mid-section drive wheel moving forward at a approach speed
-void MiddleDriveModule::driveForward()
+void MiddleDriveModule::driveForward(const float speed)
 {
-	drive_section_.setNormalizedSpeed(RobotConfig::Motion::APPROACH_SPEED,
-									  RobotConfig::Motion::APPROACH_SPEED);
+	drive_section_.setNormalizedSpeed(speed, speed);
+}
+
+bool MiddleDriveModule::isSupportConfirmed() const
+{
+	return middle_support_confirmed_ && middle_support_confirmed_();
 }
 
 // keep current position

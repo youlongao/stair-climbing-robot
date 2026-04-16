@@ -20,6 +20,7 @@ public:
 	bool raiseBody();	// raise main body : front section and middle section
 	bool lowerBody();	// lower the main body height, Used to restore posture after a step is completed,
 						// or to allow the main body to return to the support surface.
+	bool lowerUntilLowerLimit();	// retract the first lift until the lower limit is reached
 	bool moveToHeight(float target_height_m);	// raise main body to target height
 	void holdPosition();	// keep current height, no longer raise or lower body
 

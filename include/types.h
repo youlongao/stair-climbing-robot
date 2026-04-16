@@ -32,9 +32,14 @@ enum class MotionState
 {
 	Idle,
 	ApproachingStep,
-	FrontClimb,
-	MiddleTransfer,
-	RearTransfer,
+	RearSliderBack,
+	FrontLift,
+	MiddleDriveToFrontLanding,
+	MiddleClimb,
+	FrontDriveToMiddleLanding,
+	RearSliderForward,
+	RearLift,
+	FinalDriveToRearLanding,
 	Completed,
 	Fault
 };
