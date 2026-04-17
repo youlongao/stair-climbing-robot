@@ -137,6 +137,24 @@ bool FrontSegment::liftFrontUntilClearance()
 	return false;
 }
 
+void FrontSegment::continueFrontLift()
+{
+	drive_section_.brake();
+
+	if (front_lift_axis_ != nullptr)
+	{
+		front_lift_axis_->moveNormalized(RobotConfig::Motion::BODY_LIFT_SPEED);
+	}
+}
+
+void FrontSegment::holdFrontLift()
+{
+	if (front_lift_axis_ != nullptr)
+	{
+		front_lift_axis_->holdPosition();
+	}
+}
+
 bool FrontSegment::placeFrontOnStep()
 {
 	// If a lifting axis exists, 

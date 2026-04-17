@@ -21,6 +21,8 @@ public:
 	float approachAssistSpeed() const;	// speed that the middle wheels should mirror during approach
 	bool liftFrontToStep();		// control the front section to raise onto the step
 	bool liftFrontUntilClearance();	// raise the front section while all drive wheels stay stopped
+	void continueFrontLift();	// keep lifting the front section while the drive wheels stay stopped
+	void holdFrontLift();	// hold only the front lift axis
 	bool placeFrontOnStep();	// place the front wheel stably on the step surface
 	void driveForward(float speed);	// move the front drive wheels forward at a selected speed
 	void stopDrive();	// stop only the front drive wheels

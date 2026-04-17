@@ -1,5 +1,6 @@
 #include "motion_coordinator.h"
 
+#include <chrono>
 #include <string>
 #include <utility>
 
@@ -61,7 +62,7 @@ bool MotionCoordinator::executeState(const MotionState current_state)
 	case MotionState::RearSliderBack:
 		front_segment_.brakeDrive();
 		middle_drive_module_.holdPosition();
-		if (!checkActuatorTimeout("RearSliderBack", RobotConfig::Motion::ACTUATOR_CONFIRM_TIMEOUT_S))
+		if (!checkActuatorTimeout("RearSliderBack", RobotConfig::Motion::SLIDER_CONFIRM_TIMEOUT_S))
 		{
 			state_complete_ = rear_support_module_.moveSlideBackwardUntilLimit();
 		}
@@ -69,25 +70,49 @@ bool MotionCoordinator::executeState(const MotionState current_state)
 
 	case MotionState::FrontLift:
 		middle_drive_module_.holdPosition();
-		if (!checkActuatorTimeout("FrontLift", RobotConfig::Motion::ACTUATOR_CONFIRM_TIMEOUT_S))
+		if (!checkActuatorTimeout("FrontLift", RobotConfig::Motion::LIFT_CONFIRM_TIMEOUT_S))
 		{
 			state_complete_ = front_segment_.liftFrontUntilClearance();
 		}
 		break;
 
 	case MotionState::MiddleDriveToFrontLanding:
-		front_segment_.stopDrive();
-		if (checkSensorTimeout("MiddleDriveToFrontLanding"))
+		if (front_landing_extra_lift_active_)
 		{
+			front_segment_.brakeDrive();
 			stopApproachAssist();
+			const auto extra_lift_elapsed = SteadyClock::now() - front_landing_extra_lift_start_time_;
+			if (extra_lift_elapsed >= std::chrono::seconds(RobotConfig::Motion::FRONT_LANDING_EXTRA_LIFT_S))
+			{
+				front_segment_.holdFrontLift();
+				state_complete_ = true;
+			}
+			else
+			{
+				front_segment_.continueFrontLift();
+			}
 		}
 		else if (front_segment_.isSurfaceConfirmed())
 		{
+			front_segment_.stopDrive();
 			stopApproachAssist();
-			state_complete_ = true;
+			front_landing_extra_lift_active_ = true;
+			front_landing_extra_lift_start_time_ = SteadyClock::now();
+			Logger::info(
+				"Front landing confirmed; continuing front lift for " +
+				std::to_string(RobotConfig::Motion::FRONT_LANDING_EXTRA_LIFT_S) +
+				"s before middle climb.");
+			front_segment_.continueFrontLift();
+		}
+		else if (checkSensorTimeout("MiddleDriveToFrontLanding"))
+		{
+			front_segment_.stopDrive();
+			stopApproachAssist();
+			front_segment_.holdFrontLift();
 		}
 		else
 		{
+			front_segment_.driveForward(RobotConfig::Motion::CREEP_SPEED);
 			driveApproachAssist(RobotConfig::Motion::CREEP_SPEED);
 		}
 		break;
@@ -95,9 +120,15 @@ bool MotionCoordinator::executeState(const MotionState current_state)
 	case MotionState::MiddleClimb:
 		front_segment_.brakeDrive();
 		middle_drive_module_.holdPosition();
-		if (!checkActuatorTimeout("MiddleClimb", RobotConfig::Motion::ACTUATOR_CONFIRM_TIMEOUT_S))
+		if (!checkActuatorTimeout("MiddleClimb", RobotConfig::Motion::LIFT_CONFIRM_TIMEOUT_S))
 		{
-			state_complete_ = middle_lift_module_.lowerUntilLowerLimit();
+			const bool front_lift_lowered = middle_lift_module_.lowerUntilLowerLimit();
+			(void)rear_support_module_.lowerRearUntilLowerLimit();
+			if (front_lift_lowered)
+			{
+				rear_support_module_.stabilizeSupport();
+				state_complete_ = true;
+			}
 		}
 		break;
 
@@ -121,7 +152,7 @@ bool MotionCoordinator::executeState(const MotionState current_state)
 	case MotionState::RearSliderForward:
 		front_segment_.brakeDrive();
 		middle_drive_module_.holdPosition();
-		if (!checkActuatorTimeout("RearSliderForward", RobotConfig::Motion::ACTUATOR_CONFIRM_TIMEOUT_S))
+		if (!checkActuatorTimeout("RearSliderForward", RobotConfig::Motion::SLIDER_CONFIRM_TIMEOUT_S))
 		{
 			state_complete_ = rear_support_module_.moveSlideForwardUntilLimit();
 		}
@@ -130,7 +161,7 @@ bool MotionCoordinator::executeState(const MotionState current_state)
 	case MotionState::RearLift:
 		front_segment_.brakeDrive();
 		middle_drive_module_.holdPosition();
-		if (!checkActuatorTimeout("RearLift", RobotConfig::Motion::ACTUATOR_CONFIRM_TIMEOUT_S))
+		if (!checkActuatorTimeout("RearLift", RobotConfig::Motion::LIFT_CONFIRM_TIMEOUT_S))
 		{
 			state_complete_ = rear_support_module_.liftRearUntilUpperLimit();
 		}
@@ -185,6 +216,8 @@ void MotionCoordinator::resetPhases()
 {
 	state_complete_ = false;
 	active_state_valid_ = false;
+	front_landing_extra_lift_active_ = false;
+	front_landing_extra_lift_start_time_ = Timestamp{};
 	state_timed_out_ = false;
 	state_timeout_message_.clear();
 	state_timeout_kind_ = TimeoutKind::Sensor;
@@ -196,6 +229,8 @@ void MotionCoordinator::enterState(const MotionState next_state)
 	active_state_valid_ = true;
 	state_complete_ = false;
 	state_entry_time_ = SteadyClock::now();
+	front_landing_extra_lift_active_ = false;
+	front_landing_extra_lift_start_time_ = Timestamp{};
 	state_timed_out_ = false;
 	state_timeout_message_.clear();
 	state_timeout_kind_ = TimeoutKind::Sensor;

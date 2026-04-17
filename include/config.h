@@ -101,6 +101,9 @@ namespace RobotConfig
 	{
 		constexpr int ULTRASONIC_TRIG = 16;	// Physical pin 36
 		constexpr int ULTRASONIC_ECHO = 26;	// Physical pin 37
+		constexpr unsigned int FRONT_DOWNWARD_DO = 4;	// Physical pin 7
+		constexpr unsigned int MIDDLE_SUPPORT_DO = 5;	// Physical pin 29; front slider is currently bypassed
+		constexpr unsigned int REAR_SUPPORT_DO = 21;	// Physical pin 40
 		constexpr unsigned int MCP23017_INTA = 19;	// Physical pin 35 — port-A interrupt
 		constexpr unsigned int MCP23017_INTB = 20;	// Physical pin 38 — port-B interrupt
 	}
@@ -118,7 +121,9 @@ namespace RobotConfig
 	{
 		constexpr int POLL_INTERVAL_MS = 10;
 
-		// TCRT5000 digital outputs (DO only; AO is unused)
+		// Legacy MCP23017 TCRT5000 digital input allocation retained for MCP
+		// diagnostic tools only. The main robot now reads the three downward
+		// sensors directly from Raspberry Pi GPIO::FRONT/MIDDLE/REAR_* pins.
 		constexpr uint8_t FRONT_DOWNWARD_DO = 0;	// GPA0
 		constexpr uint8_t MIDDLE_SUPPORT_DO = 1;	// GPA1
 		constexpr uint8_t REAR_SUPPORT_DO = 2;		// GPA2
@@ -138,7 +143,7 @@ namespace RobotConfig
 	{
 		// TCRT5000 DO threshold is adjusted on the sensor module potentiometer.
 		// These flags only describe which DO logic level means "surface detected".
-		constexpr bool DOWNWARD_ACTIVE_ON_SURFACE = true;
+		constexpr bool DOWNWARD_ACTIVE_ON_SURFACE = false;
 		constexpr bool FRONT_DOWNWARD_ACTIVE_ON_SURFACE = DOWNWARD_ACTIVE_ON_SURFACE;
 		constexpr bool MIDDLE_SUPPORT_ACTIVE_ON_SURFACE = DOWNWARD_ACTIVE_ON_SURFACE;
 		constexpr bool REAR_SUPPORT_ACTIVE_ON_SURFACE = DOWNWARD_ACTIVE_ON_SURFACE;
@@ -153,10 +158,10 @@ namespace RobotConfig
 		constexpr int APPROACH_CLOSE_CONFIRM_SAMPLES = 3;
 		constexpr float STEP_COMPLETION_CLEARANCE_M = 0.18f;
 		constexpr int SENSOR_STALE_MS = 250;
-		// Event-driven digital sensors (MCP23017 downward / support sensors)
-		// only push a new reading on a pin-change interrupt.  A stable pin is
-		// therefore perfectly fresh; use a much wider stale window so that a
-		// sensor holding its state for several seconds is not discarded.
+		// Event-driven digital downward / support sensors only push a new
+		// reading on pin changes.  A stable pin is therefore perfectly fresh;
+		// use a much wider stale window so that a sensor holding its state for
+		// several seconds is not discarded.
 		constexpr int DOWNWARD_SENSOR_STALE_MS = 10000;
 		constexpr int FRONT_DISTANCE_STARTUP_TIMEOUT_MS = 3000;
 		// Number of consecutive invalid HC-SR04 readings before the safety
@@ -208,11 +213,15 @@ namespace RobotConfig
 		// Maximum number of stair steps to climb before transitioning to
 		// MotionState::Completed.  Set to 0 for continuous climbing (robot runs
 		// until an external stop signal is received).
-		constexpr int MAX_CLIMB_CYCLES = 1;
-		// Maximum time (seconds) to wait for a limit switch or actuator to reach
-		// its target position. Covers RearSliderBack/Forward, FrontLift,
-		// MiddleClimb, and RearLift states.
-		constexpr int ACTUATOR_CONFIRM_TIMEOUT_S = 30;
+		constexpr int MAX_CLIMB_CYCLES = 0;
+		// After the front downward sensor confirms that the front wheels have
+		// reached the step surface, keep lifting briefly so the front assembly
+		// fully clears and settles onto the stair before raising the middle.
+		constexpr int FRONT_LANDING_EXTRA_LIFT_S = 7;
+		// Maximum time (seconds) to wait for a slider limit switch to confirm.
+		constexpr int SLIDER_CONFIRM_TIMEOUT_S = 30;
+		// Maximum time (seconds) to wait for the slow high-torque lift modules.
+		constexpr int LIFT_CONFIRM_TIMEOUT_S = 180;
 	}
 
 	namespace Safety

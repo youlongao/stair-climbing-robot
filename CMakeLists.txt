@@ -178,6 +178,20 @@ target_include_directories(IR_MCP23017_All_Test PRIVATE
     "${GPIOD_INCLUDE_DIR}")
 target_link_libraries(IR_MCP23017_All_Test PRIVATE Threads::Threads "${GPIOD_LIBRARY}")
 
+add_executable(IR_Direct_All_Test
+    "tools/ir_direct_gpio_all_test.cpp"
+    "src/downward_sensor.cpp"
+    "src/logger.cpp")
+target_compile_features(IR_Direct_All_Test PRIVATE cxx_std_20)
+set_target_properties(IR_Direct_All_Test PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF)
+target_include_directories(IR_Direct_All_Test PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${GPIOD_INCLUDE_DIR}")
+target_link_libraries(IR_Direct_All_Test PRIVATE Threads::Threads "${GPIOD_LIBRARY}")
+
 add_executable(MCP23017_Limit_Test
     "tools/mcp23017_limit_switch_test.cpp"
     "src/logger.cpp"
@@ -231,6 +245,7 @@ if(CLIMBING_ROBOT_ENABLE_WARNINGS)
   target_compile_options(DRV8833_PCA_Lift_Test PRIVATE -Wall -Wextra -Wpedantic)
   target_compile_options(Front_IR_MCP23017_Test PRIVATE -Wall -Wextra -Wpedantic)
   target_compile_options(IR_MCP23017_All_Test PRIVATE -Wall -Wextra -Wpedantic)
+  target_compile_options(IR_Direct_All_Test PRIVATE -Wall -Wextra -Wpedantic)
   target_compile_options(MCP23017_Limit_Test PRIVATE -Wall -Wextra -Wpedantic)
   target_compile_options(Rear_Slide_Limit_Orientation_Test PRIVATE -Wall -Wextra -Wpedantic)
   target_compile_options(Front_Ultrasonic_Test PRIVATE -Wall -Wextra -Wpedantic)

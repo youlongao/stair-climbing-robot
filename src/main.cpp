@@ -16,12 +16,12 @@
 #include <unistd.h>
 
 #include "climbing_fsm.h"
+#include "downward_sensor.h"
 #include "front_distance_sensor.h"
 #include "front_segment.h"
 #include "imu_sensor.h"
 #include "linear_actuator.h"
 #include "logger.h"
-#include "mcp23017_downward_sensor.h"
 #include "mcp23017_driver.h"
 #include "mcp23017_limit_switch.h"
 #include "middle_drive_module.h"
@@ -41,7 +41,7 @@ namespace
 {
 constexpr float kInitialFrontSliderExtensionM = RobotConfig::Geometry::SLIDER_HOME_OFFSET_M;
 constexpr auto kSliderHomeTimeout = std::chrono::seconds(2);
-constexpr auto kStartupResetTimeout = std::chrono::seconds(60);
+constexpr auto kStartupResetTimeout = std::chrono::seconds(180);
 
 struct WaitForImuState
 {
@@ -371,24 +371,18 @@ int RunRobotController(IDriveSection& front_drive,
 		return rear_drop_seen_during_transfer && reading.on_step_surface;
 	};
 
-	bool front_drop_seen_during_climb = false;
 	FrontSegment front_segment(
 		front_drive,
 		front_sensor,
 		&first_lift_axis,
-		[&front_downward_sensor, &front_drop_seen_during_climb]() {
+		[&front_downward_sensor]() {
 			const auto reading = front_downward_sensor.latest();
 			if (!reading.valid)
 			{
 				return false;
 			}
 
-			if (reading.drop_detected)
-			{
-				front_drop_seen_during_climb = true;
-			}
-
-			return front_drop_seen_during_climb && reading.on_step_surface;
+			return reading.on_step_surface;
 		});
 	MiddleLiftModule middle_lift(first_lift_axis, middle_support_confirmed);
 	MiddleDriveModule middle_drive_module(middle_drive, middle_support_confirmed);
@@ -407,14 +401,10 @@ int RunRobotController(IDriveSection& front_drive,
 		middle_drive_module,
 		rear_support_module,
 		&middle_drive,
-		[&front_drop_seen_during_climb,
-		 &middle_drop_seen_during_transfer,
+		[&middle_drop_seen_during_transfer,
 		 &rear_drop_seen_during_transfer](const MotionState state) {
 			switch (state)
 			{
-			case MotionState::MiddleDriveToFrontLanding:
-				front_drop_seen_during_climb = false;
-				break;
 			case MotionState::FrontDriveToMiddleLanding:
 				middle_drop_seen_during_transfer = false;
 				break;
@@ -622,21 +612,21 @@ int RunHardwareBringup()
 		Logger::warn("Front ultrasonic sensor did not produce a valid sample during startup.");
 	}
 
-	Mcp23017DownwardSensor front_downward_sensor(
-		mcp23017,
-		RobotConfig::MCP23017::FRONT_DOWNWARD_DO,
+	DownwardSensor front_downward_sensor(
+		RobotConfig::Platform::GPIO_CHIP,
+		RobotConfig::GPIO::FRONT_DOWNWARD_DO,
 		RobotConfig::Sensors::FRONT_DOWNWARD_ACTIVE_ON_SURFACE);
-	Mcp23017DownwardSensor middle_support_sensor(
-		mcp23017,
-		RobotConfig::MCP23017::MIDDLE_SUPPORT_DO,
+	DownwardSensor middle_support_sensor(
+		RobotConfig::Platform::GPIO_CHIP,
+		RobotConfig::GPIO::MIDDLE_SUPPORT_DO,
 		RobotConfig::Sensors::MIDDLE_SUPPORT_ACTIVE_ON_SURFACE);
-	Mcp23017DownwardSensor rear_support_sensor(
-		mcp23017,
-		RobotConfig::MCP23017::REAR_SUPPORT_DO,
+	DownwardSensor rear_support_sensor(
+		RobotConfig::Platform::GPIO_CHIP,
+		RobotConfig::GPIO::REAR_SUPPORT_DO,
 		RobotConfig::Sensors::REAR_SUPPORT_ACTIVE_ON_SURFACE);
-	failIfStartFailed("Front downward edge sensor", front_downward_sensor.start(), "Check MCP23017 GPA0 wiring and TCRT5000 DO output.");
-	failIfStartFailed("Middle support sensor", middle_support_sensor.start(), "Check MCP23017 GPA1 wiring and TCRT5000 DO output.");
-	failIfStartFailed("Rear support sensor", rear_support_sensor.start(), "Check MCP23017 GPA2 wiring and TCRT5000 DO output.");
+	failIfStartFailed("Front downward edge sensor", front_downward_sensor.start(), "Check TCRT5000 DO wiring to BCM4 (physical pin 7).");
+	failIfStartFailed("Middle support sensor", middle_support_sensor.start(), "Check TCRT5000 DO wiring to BCM5 (physical pin 29).");
+	failIfStartFailed("Rear support sensor", rear_support_sensor.start(), "Check TCRT5000 DO wiring to BCM21 (physical pin 40).");
 
 	Mcp23017LimitSwitch lift1_upper_limit(
 		mcp23017,
@@ -755,16 +745,16 @@ int RunHardwareBringup()
 	}
 
 	// Start the MCP23017 interrupt thread before any actuator motion.
-	// All MCP23017-backed sensors (downward sensors, limit switches) only push
-	// state updates via this thread.  ResetLiftModulesToStartupPose() relies on
-	// waitForTrigger() to detect limit-switch events, so if the thread is not
-	// running those calls will block until the 8-second startup timeout fires.
+	// MCP23017-backed limit switches only push state updates via this thread.
+	// ResetLiftModulesToStartupPose() relies on waitForTrigger() to detect
+	// limit-switch events, so if the thread is not running those calls will
+	// block until the startup timeout fires.
 	if (!mcp23017->startInterrupts(RobotConfig::GPIO::MCP23017_INTA, RobotConfig::GPIO::MCP23017_INTB))
 	{
 		Logger::error(
 			"MCP23017 interrupt thread failed to start. "
 			"Check INTA on BCM19 (physical pin 35) and INTB on BCM20 (physical pin 38). "
-			"All limit switches and downward sensors are unavailable — aborting.");
+			"All MCP23017 limit switches are unavailable — aborting.");
 		close(bringup_signal_fd);
 		return 1;
 	}

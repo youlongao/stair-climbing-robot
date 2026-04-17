@@ -36,6 +36,9 @@ public:
 	// Lift the rear section until the rear lift upper limit is reached
 	bool liftRearUntilUpperLimit();
 
+	// Lower the rear lift until the rear lower limit is reached
+	bool lowerRearUntilLowerLimit();
+
 	// True after the rear downward sensor confirms landing
 	bool isSupportConfirmed() const;
 

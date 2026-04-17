@@ -122,6 +122,25 @@ bool RearSupportModule::liftRearUntilUpperLimit()
 	return false;
 }
 
+bool RearSupportModule::lowerRearUntilLowerLimit()
+{
+	if (rear_lift_axis_ == nullptr)
+	{
+		return true;
+	}
+
+	const auto axis_state = rear_lift_axis_->getAxisState();
+	if (axis_state.at_lower_limit)
+	{
+		rear_lift_axis_->holdPosition();
+		Logger::info("Rear lift reached the lower limit.");
+		return true;
+	}
+
+	rear_lift_axis_->moveNormalized(RobotConfig::Motion::BODY_LOWER_SPEED);
+	return false;
+}
+
 bool RearSupportModule::isSupportConfirmed() const
 {
 	return rear_support_confirmed_ && rear_support_confirmed_();

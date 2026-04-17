@@ -59,8 +59,10 @@ private:
 	MotionState active_state_{MotionState::Idle};
 	bool active_state_valid_{false};
 	bool state_complete_{false};
+	bool front_landing_extra_lift_active_{false};
 
 	Timestamp state_entry_time_{};
+	Timestamp front_landing_extra_lift_start_time_{};
 	bool state_timed_out_{false};
 	std::string state_timeout_message_;
 	TimeoutKind state_timeout_kind_{TimeoutKind::Sensor};
