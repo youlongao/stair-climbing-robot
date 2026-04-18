@@ -458,9 +458,9 @@ For the input path, it is necessary to confirm whether the signals required for 
 
 Only after the above actuator, sensor, and limit tests have all passed separately is it suitable to enter whole-machine integration testing. The whole-machine test corresponds to the main program `src/main.cpp`, that is, the built `Climbing_Robot`. At this stage, the focus of verification is no longer whether a single component responds, but whether startup bring-up, forward ranging initialization, MCP23017 interrupt-thread creation, startup reset, state-machine progression, motion coordination, and fault-stop paths can be connected into one complete main chain. In other words, the earlier tests answer the question “can each component work independently,” while whole-machine integration answers the question “when these components are put together, can the system complete one real stair-climbing control cycle in the intended order.”
 
-### 3. Detailed Test Documentation
+### 3. Detailed Test Documentation and apt install
 
-This section is mainly used to explain the testing ideas and testing layers of the project. If it is necessary to further check the build commands, running methods, GPIO or MCP23017 mapping, expected phenomena, and recommended testing order for each test target, the independent testing document `TEST_FRAMEWORK.md` can be consulted.
+This section is mainly used to explain the testing ideas and testing layers of the project. If it is necessary to further check the build commands, running methods, GPIO or MCP23017 mapping, expected phenomena, and recommended testing order for each test target, the independent testing document `TEST_Readme.md` can be consulted. And the apt install all in the Test_Readme.md.
 
 ## Result Analysis
 
