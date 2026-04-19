@@ -30,7 +30,7 @@ Three-stage climbing robot Complete: https://vm.tiktok.com/ZNRq2NjrW/
 11. Result Analysis
 12. Conclusion
 
-# README Plus for the Three-Stage Stair-Climbing Robot (English Version)
+# README
 
 ## Project Introduction
 
